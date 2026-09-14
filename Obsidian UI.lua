@@ -1,4 +1,4 @@
--- This script was generated using MoonVeil 2.0.23 [https://moonveil.cc]
+-- This script was generated using MoonVeil 2.0.24 [https://moonveil.cc]
 local Players=game:GetService"Players"
 local RunService=game:GetService"RunService"
 local UserInputService=game:GetService"UserInputService"
@@ -16,16 +16,18 @@ Library:UpdateColorsUsingRegistry()
 Library.ForceCheckbox=false
 Library.ShowToggleFrameInKeybinds=true
 local Window=Library:CreateWindow{
-    Title="\230\184\175\231\140\171\231\154\132\233\128\154\231\188\137Wanted",
-    Footer="Obsidian UI",
-    Icon=95816097006870,
+    Title="\230\184\175\231\140\171\231\154\132\233\128\154\231\188\137\228\184\173\229\155\189\229\184\140\230\156\155",
+    Footer="\230\172\162\232\191\142\228\189\191\231\148\168",
+    Icon="rbxassetid://135749451972137",
     NotifySide="Right",
     ShowCustomCursor=false,
     Center=true,
     AutoShow=true,
     Resizable=true,
-    MobileButtonsSide="Right"
+    MobileButtonsSide="f"
 }
+Window:SetBackgroundImage"rbxassetid://74582090236479"
+Window.BackgroundTransparency=0.2
 local Tabs={
     wj=Window:AddTab("\231\142\169\229\174\182","users"),
     jx=Window:AddTab("\232\191\156\231\168\139\229\135\187\230\157\128+\233\155\183\232\190\190","crown"),
@@ -2160,7 +2162,7 @@ task.spawn(function()
         ["Config Name"]="\233\133\141\231\189\174\229\144\141\231\167\176",
         ["Autoload"]="\232\135\170\229\138\168\229\138\160\232\189\189"
     }
-    while task.wait(0.5)do
+    while task.wait(0.1)do
         pcall(function()
             local containers={
                 game.Players.LocalPlayer:FindFirstChild"PlayerGui",
