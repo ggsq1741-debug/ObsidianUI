@@ -1,3 +1,118 @@
+-- ============================================
+-- 检测多个指定玩家加入服务器并提示（纯源码）
+-- ============================================
+
+local TARGET_NAMES = {
+    "Suponjibobu00",
+    "YK666308",
+    "某某某3",
+} -- 需要监控的玩家名字，随意增加
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- 快速查表
+local targetSet = {}
+for _, name in ipairs(TARGET_NAMES) do
+    targetSet[string.lower(name)] = name
+end
+
+-- 创建提示界面
+local function showNotification(playerName)
+    local oldGui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("TargetJoinNotify")
+    if oldGui then oldGui:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "TargetJoinNotify"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 400, 0, 80)
+    frame.Position = UDim2.new(0.5, -200, 0, 50)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BackgroundTransparency = 0.2
+    frame.BorderSizePixel = 0
+    frame.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 80, 80)
+    stroke.Thickness = 2
+    stroke.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 8)
+    title.BackgroundTransparency = 1
+    title.Text = "目标玩家加入不是脚本作者就是管理员"
+    title.TextColor3 = Color3.fromRGB(255, 80, 80)
+    title.TextSize = 20
+    title.Font = Enum.Font.GothamBold
+    title.Parent = frame
+
+    local content = Instance.new("TextLabel")
+    content.Size = UDim2.new(1, 0, 0, 28)
+    content.Position = UDim2.new(0, 0, 0, 40)
+    content.BackgroundTransparency = 1
+    content.Text = playerName .. " 加入了服务器！"
+    content.TextColor3 = Color3.fromRGB(255, 255, 255)
+    content.TextSize = 16
+    content.Font = Enum.Font.Gotham
+    content.Parent = frame
+
+    -- 淡入
+    frame.BackgroundTransparency = 1
+    title.TextTransparency = 1
+    content.TextTransparency = 1
+    task.spawn(function()
+        for i = 0, 20 do
+            local t = i / 20
+            frame.BackgroundTransparency = 0.8 - 0.6 * t
+            title.TextTransparency = 1 - t
+            content.TextTransparency = 1 - t
+            task.wait(0.01)
+        end
+    end)
+
+    -- 30 秒后淡出
+    task.delay(30, function()
+        for i = 0, 20 do
+            local t = i / 20
+            frame.BackgroundTransparency = 0.2 + 0.8 * t
+            title.TextTransparency = t
+            content.TextTransparency = t
+            task.wait(0.01)
+        end
+        gui:Destroy()
+    end)
+
+    -- 提示音
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://4590662766"
+    sound.Volume = 0.9
+    sound.Parent = gui
+    sound:Play()
+end
+
+-- 检查玩家是否在监控列表里
+local function checkPlayer(player)
+    if targetSet[string.lower(player.Name)] then
+        showNotification(player.Name)
+    end
+end
+
+-- 检查已经在服务器里的玩家
+for _, player in ipairs(Players:GetPlayers()) do
+    checkPlayer(player)
+end
+
+-- 监听后续加入的玩家
+Players.PlayerAdded:Connect(checkPlayer)
 -- ==================== 服务 ====================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -45,6 +160,7 @@ local Tabs = {
     bot  = Window:AddTab("瞄准", "target"),
     ESP  = Window:AddTab("ESP", "eye"),
     ESPP = Window:AddTab("ESP2", "eye"),
+    pg   = Window:AddTab("苹果端ESP", "eye"),
     wb   = Window:AddTab("ESP物品", "box"),
     qq   = Window:AddTab("删除", "trash-2"),
     rsao = Window:AddTab("娱乐功能", "zap"),
@@ -1410,6 +1526,162 @@ esp2SetGroup:AddSlider("ESP2_BoxThick", {
     Text = "方框线条粗细",
     Default = 1, Min = 1, Max = 5, Rounding = 0,
     Callback = function(value) P_BOX_THICKNESS = value end,
+})
+-------pgesp----
+-- ==================== 苹果端ESP（从「没有卡密的通缉」移入） ====================
+local AppleESP_Enabled = false
+local AppleESP_Color = Color3.fromRGB(255, 50, 50)
+local AppleESP_MaxDist = 1000
+local AppleESP_TeamCheck = true
+local AppleESP_Data = {}
+local AppleESP_Loop = nil
+
+local function AppleESP_Create(player)
+    if player == LocalPlayer then return end
+    local hl = Instance.new("Highlight")
+    hl.FillTransparency = 1
+    hl.OutlineColor = AppleESP_Color
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Enabled = false
+    local bb = Instance.new("BillboardGui")
+    bb.Size = UDim2.fromOffset(120, 30)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.ResetOnSpawn = false
+    bb.Enabled = false
+    local name = Instance.new("TextLabel")
+    name.Size = UDim2.new(1, 0, 0, 16)
+    name.BackgroundTransparency = 1
+    name.TextColor3 = Color3.new(1, 1, 1)
+    name.TextSize = 14
+    name.Font = Enum.Font.GothamBold
+    name.TextStrokeTransparency = 0.3
+    name.Text = player.Name
+    name.Parent = bb
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(0, 50, 0, 3)
+    bg.Position = UDim2.new(0.5, -25, 0, 18)
+    bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    bg.BorderSizePixel = 0
+    bg.Parent = bb
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(1, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 255, 80)
+    fill.BorderSizePixel = 0
+    fill.Parent = bg
+    AppleESP_Data[player] = { hl = hl, bb = bb, fill = fill }
+end
+
+local function AppleESP_Setup(player)
+    if AppleESP_Data[player] then
+        AppleESP_Data[player].hl:Destroy()
+        AppleESP_Data[player].bb:Destroy()
+        AppleESP_Data[player] = nil
+    end
+    local char = player.Character
+    if not char then return end
+    AppleESP_Create(player)
+    local e = AppleESP_Data[player]
+    if not e then return end
+    local head = char:WaitForChild("Head", 5)
+    if head then
+        e.hl.Adornee = char
+        e.hl.Parent = char
+        e.bb.Adornee = head
+        e.bb.Parent = head
+    end
+end
+
+local function AppleESP_Start()
+    if AppleESP_Enabled then return end
+    AppleESP_Enabled = true
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            if p.Character then AppleESP_Setup(p) end
+            p.CharacterAdded:Connect(function()
+                if AppleESP_Enabled then AppleESP_Setup(p) end
+            end)
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(p)
+        if p ~= LocalPlayer then
+            p.CharacterAdded:Connect(function()
+                if AppleESP_Enabled then AppleESP_Setup(p) end
+            end)
+            if p.Character and AppleESP_Enabled then AppleESP_Setup(p) end
+        end
+    end)
+
+    Players.PlayerRemoving:Connect(function(p)
+        if AppleESP_Data[p] then
+            AppleESP_Data[p].hl:Destroy()
+            AppleESP_Data[p].bb:Destroy()
+            AppleESP_Data[p] = nil
+        end
+    end)
+
+    AppleESP_Loop = RunService.RenderStepped:Connect(function()
+        if not AppleESP_Enabled then return end
+        local myChar = LocalPlayer.Character
+        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        for player, e in pairs(AppleESP_Data) do
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local show = hum and hrp and hum.Health > 0
+            if show and AppleESP_TeamCheck and player.Team and player.Team == LocalPlayer.Team then
+                show = false
+            end
+            if show and myHRP and (myHRP.Position - hrp.Position).Magnitude > AppleESP_MaxDist then
+                show = false
+            end
+            e.hl.Enabled = show
+            e.bb.Enabled = show
+            if show then
+                local r = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+                e.fill.Size = UDim2.new(r, 0, 1, 0)
+                e.fill.BackgroundColor3 = Color3.fromHSV(r * 0.33, 1, 1)
+            end
+        end
+    end)
+end
+
+local function AppleESP_Stop()
+    AppleESP_Enabled = false
+    if AppleESP_Loop then
+        AppleESP_Loop:Disconnect()
+        AppleESP_Loop = nil
+    end
+    for p, e in pairs(AppleESP_Data) do
+        e.hl:Destroy()
+        e.bb:Destroy()
+    end
+    table.clear(AppleESP_Data)
+end
+
+local AppleESP_Group = Tabs.pg:AddLeftGroupbox("苹果端ESP")
+
+AppleESP_Group:AddToggle("AppleESP_Toggle", {
+    Text = "ESP内透",
+    Default = false,
+    Callback = function(state)
+        if state then
+            AppleESP_Start()
+        else
+            AppleESP_Stop()
+        end
+    end,
+})
+
+AppleESP_Group:AddSlider("AppleESP_MaxDist", {
+    Text = "最大可视距离",
+    Default = 1000,
+    Min = 100,
+    Max = 3000,
+    Rounding = 0,
+    Callback = function(v) AppleESP_MaxDist = v end,
 })
 
 -- ==================== ESP 物品页 ====================
