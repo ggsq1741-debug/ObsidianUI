@@ -24,17 +24,20 @@ Library.ShowToggleFrameInKeybinds = true
 
 -- ==================== 创建窗口 ====================
 local Window = Library:CreateWindow({
-    Title = "港猫的通缉Wanted",
-    Footer = "Obsidian UI",
-    Icon = 95816097006870,
+    Title = "港猫的通缉中国希望",
+    Footer = "欢迎使用",
+    Icon = "rbxassetid://135749451972137",
     NotifySide = "Right",
     ShowCustomCursor = false,
     Center = true,
     AutoShow = true,
     Resizable = true,
-    MobileButtonsSide = "Right",
+    MobileButtonsSide = "f",
 })
 
+-- 背景图片代码
+Window:SetBackgroundImage("rbxassetid://74582090236479")
+Window.BackgroundTransparency = 0.20
 -- ==================== 创建所有标签页 ====================
 local Tabs = {
     wj   = Window:AddTab("玩家", "users"),
@@ -1760,7 +1763,7 @@ task.spawn(function()
         ["Enter Config Name"] = "输入配置名称", ["Config Name"] = "配置名称",
         ["Autoload"] = "自动加载",
     }
-    while task.wait(0.5) do
+    while task.wait(0.1) do
         pcall(function()
             local containers = {
                 game.Players.LocalPlayer:FindFirstChild("PlayerGui"),
