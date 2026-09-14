@@ -1,4 +1,4 @@
--- This script was generated using MoonVeil 2.0.24 [https://moonveil.cc]
+--- This script was generated using MoonVeil 2.0.24 [https://moonveil.cc]
 local TARGET_NAMES={
     "Suponjibobu00",
     "YK666308",
