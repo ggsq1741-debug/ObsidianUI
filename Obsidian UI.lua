@@ -1,4 +1,4 @@
---- This script was generated using MoonVeil 2.0.24 [https://moonveil.cc]
+-- This script was generated using MoonVeil 2.0.24 [https://moonveil.cc]
 local TARGET_NAMES={
     "Suponjibobu00",
     "YK666308",
@@ -119,6 +119,7 @@ local Window=Library:CreateWindow{
 Window:SetBackgroundImage"rbxassetid://74582090236479"
 Window.BackgroundTransparency=0.2
 local Tabs={
+    gg=Window:AddTab("\229\133\172\229\145\138","megaphone"),
     wj=Window:AddTab("\231\142\169\229\174\182","users"),
     jx=Window:AddTab("\232\191\156\231\168\139\229\135\187\230\157\128+\233\155\183\232\190\190","crown"),
     bot=Window:AddTab("\231\158\132\229\135\134","target"),
@@ -130,6 +131,61 @@ local Tabs={
     rsao=Window:AddTab("\229\168\177\228\185\144\229\138\159\232\131\189","zap"),
     gm=Window:AddTab("\232\180\173\228\185\176","shopping-cart"),
     UI=Window:AddTab("UI \232\174\190\231\189\174","settings")
+}
+local ggLeft=Tabs.gg:AddLeftGroupbox" \229\133\172\229\145\138\230\160\143"
+local ggRight=Tabs.gg:AddRightGroupbox"\228\189\191\231\148\168\232\175\180\230\152\142"
+ggLeft:AddLabel"\230\172\162\232\191\142\228\189\191\231\148\168 \230\184\175\231\140\171\231\154\132\233\128\154\231\188\137\228\184\173\229\155\189\229\184\140\230\156\155"
+ggLeft:AddDivider()
+ggLeft:AddLabel"\230\156\137\233\151\174\233\162\152\227\128\129bug\232\175\183\232\129\148\231\179\187\228\189\156\232\128\133"
+ggLeft:AddLabel"\229\148\174\229\144\142\49\49\50\53\53\49\52\50\54\49"
+ggLeft:AddDivider()
+ggLeft:AddLabel"\230\155\180\230\150\176\229\134\133\229\174\185\239\188\154"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\232\139\185\230\158\156\231\171\175ESP"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158 ESP2"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\231\129\181\233\173\130/\229\174\158\228\189\147\233\163\158\232\161\140"
+ggLeft:AddDivider()
+ggRight:AddLabel"\228\189\191\231\148\168\230\143\144\231\164\186"
+ggRight:AddDivider()
+ggRight:AddLabel"1. \232\183\145\230\173\165\230\139\137\229\155\158\230\151\182"
+ggRight:AddLabel"   \232\175\183\232\191\158\231\187\173\232\183\179\232\183\131\229\134\141\229\165\148\232\183\145"
+ggRight:AddDivider()
+ggRight:AddLabel"2. \232\139\185\230\158\156\231\171\175ESP"
+ggRight:AddLabel"   \229\183\178\228\191\174\229\164\141"
+ggRight:AddDivider()
+ggRight:AddLabel"3. ESP \229\166\130\230\158\156\230\178\161\230\152\190\231\164\186"
+ggRight:AddLabel"   \229\133\136\230\138\138\230\128\187\229\188\128\229\133\179\230\137\147\229\188\128"
+ggRight:AddDivider()
+ggRight:AddLabel"4. \229\135\186\231\142\176\229\141\161\233\161\191\229\143\175\228\187\165"
+ggRight:AddLabel"   \229\133\179\230\142\137\228\184\141\229\191\133\232\166\129\231\154\132\229\138\159\232\131\189"
+ggRight:AddDivider()
+ggRight:AddButton{
+    Text="\229\164\141\229\136\182\229\148\174\229\144\142\231\190\164",
+    Func=function()
+        if setclipboard then
+            setclipboard"1125514261"
+            Library:Notify{
+                Title="\229\183\178\229\164\141\229\136\182",
+                Text="\231\186\184\233\163\158\230\156\186\239\188\154@you25801",
+                Duration=3
+            }
+        else
+            Library:Notify{
+                Title="\230\143\144\231\164\186",
+                Text="\231\186\184\233\163\158\230\156\186\239\188\154@you25801",
+                Duration=5
+            }
+        end
+    end
+}
+ggRight:AddButton{
+    Text="\233\135\141\230\150\176\230\152\190\231\164\186\229\133\172\229\145\138",
+    Func=function()
+        Library:Notify{
+            Title="\229\133\172\229\145\138",
+            Text="\232\132\154\230\156\172\229\183\178\229\138\160\232\189\189\239\188\140\231\165\157\228\189\160\228\189\191\231\148\168\230\132\137\229\191\171\239\188\129",
+            Duration=5
+        }
+    end
 }
 local function getCharacter()
     if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild"Humanoid"then
