@@ -116,8 +116,8 @@ local Window=Library:CreateWindow{
     Resizable=true,
     MobileButtonsSide="f"
 }
-Window:SetBackgroundImage"rbxassetid://74582090236479"
-Window.BackgroundTransparency=0.2
+Window:SetBackgroundImage"https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/33490c2c-02d8-4dc8-b24a-0e0478a45b8f.png"
+Window.BackgroundTransparency=0.9
 local Tabs={
     gg=Window:AddTab("\229\133\172\229\145\138","megaphone"),
     wj=Window:AddTab("\231\142\169\229\174\182","users"),
