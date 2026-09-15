@@ -155,6 +155,7 @@ Window:SetBackgroundImage("rbxassetid://74582090236479")
 Window.BackgroundTransparency = 0.20
 -- ==================== 创建所有标签页 ====================
 local Tabs = {
+    gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
     jx   = Window:AddTab("远程击杀+雷达", "crown"),
     bot  = Window:AddTab("瞄准", "target"),
@@ -167,7 +168,55 @@ local Tabs = {
     gm   = Window:AddTab("购买", "shopping-cart"),
     UI   = Window:AddTab("UI 设置", "settings"),
 }
+-----公告-------
+-- ==================== 公告标签页 ====================
+local ggLeft  = Tabs.gg:AddLeftGroupbox(" 公告栏")
+local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 
+ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
+ggLeft:AddDivider()
+ggLeft:AddLabel("有问题、bug请联系作者")
+ggLeft:AddLabel("售后1125514261")
+ggLeft:AddDivider()
+ggLeft:AddLabel("更新内容：")
+ggLeft:AddLabel("• 新增苹果端ESP")
+ggLeft:AddLabel("• 新增 ESP2")
+ggLeft:AddLabel("• 新增灵魂/实体飞行")
+ggLeft:AddDivider()
+
+ggRight:AddLabel("使用提示")
+ggRight:AddDivider()
+ggRight:AddLabel("1. 跑步拉回时")
+ggRight:AddLabel("   请连续跳跃再奔跑")
+ggRight:AddDivider()
+ggRight:AddLabel("2. 苹果端ESP")
+ggRight:AddLabel("   已修复")
+ggRight:AddDivider()
+ggRight:AddLabel("3. ESP 如果没显示")
+ggRight:AddLabel("   先把总开关打开")
+ggRight:AddDivider()
+ggRight:AddLabel("4. 出现卡顿可以")
+ggRight:AddLabel("   关掉不必要的功能")
+
+ggRight:AddDivider()
+ggRight:AddButton({
+    Text = "复制售后群",
+    Func = function()
+        if setclipboard then
+            setclipboard("1125514261")
+            Library:Notify({Title = "已复制", Text = "纸飞机：@you25801", Duration = 3})
+        else
+            Library:Notify({Title = "提示", Text = "纸飞机：@you25801", Duration = 5})
+        end
+    end,
+})
+
+ggRight:AddButton({
+    Text = "重新显示公告",
+    Func = function()
+        Library:Notify({Title = "公告", Text = "脚本已加载，祝你使用愉快！", Duration = 5})
+    end,
+})
 -- ==================== 通用工具函数 ====================
 local function getCharacter()
     if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
