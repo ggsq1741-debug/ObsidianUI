@@ -151,8 +151,8 @@ local Window = Library:CreateWindow({
 })
 
 -- 背景图片代码
-Window:SetBackgroundImage("rbxassetid://74582090236479")
-Window.BackgroundTransparency = 0.20
+Window:SetBackgroundImage("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/33490c2c-02d8-4dc8-b24a-0e0478a45b8f.png")
+Window.BackgroundTransparency = 0.9
 -- ==================== 创建所有标签页 ====================
 local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
