@@ -132,6 +132,7 @@ Window.BackgroundTransparency=0.9
 local Tabs={
     gg=Window:AddTab("\229\133\172\229\145\138","megaphone"),
     wj=Window:AddTab("\231\142\169\229\174\182","users"),
+    fc=Window:AddTab("\228\186\154\230\180\178\232\189\166\231\142\139","rbxassetid://7733708835"),
     jx=Window:AddTab("\232\191\156\231\168\139\229\135\187\230\157\128+\233\155\183\232\190\190","crown"),
     gh=Window:AddTab("\229\133\137\231\142\175\232\174\190\231\189\174","crown"),
     bot=Window:AddTab("\231\158\132\229\135\134","target"),
@@ -152,9 +153,9 @@ ggLeft:AddLabel"\230\156\137\233\151\174\233\162\152\227\128\129bug\232\175\183\
 ggLeft:AddLabel"\229\148\174\229\144\142\49\49\50\53\53\49\52\50\54\49"
 ggLeft:AddDivider()
 ggLeft:AddLabel"\230\155\180\230\150\176\229\134\133\229\174\185\239\188\154"
-ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\232\139\185\230\158\156\231\171\175ESP"
-ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158 ESP2"
-ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\231\129\181\233\173\130/\229\174\158\228\189\147\233\163\158\232\161\140"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\233\163\158\232\189\166\229\133\137\231\142\175\231\173\137"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\231\148\181\232\132\145\230\137\139\230\156\186\231\171\175\233\128\154\231\148\168\233\163\158\232\189\166"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\229\174\158\228\189\147\233\163\158\232\161\140\233\128\174\230\141\149\229\133\137\231\142\175"
 ggLeft:AddDivider()
 ggRight:AddLabel"\228\189\191\231\148\168\230\143\144\231\164\186"
 ggRight:AddDivider()
@@ -710,6 +711,212 @@ miscGroup:AddButton{
         end)
     end
 }
+local CamStab={
+    Enabled=false,
+    Mode="\231\168\179\229\174\154\232\183\159\233\154\143",
+    Smoothness=0.3,
+    LastCFrame=nil,
+    Connection=nil,
+    SubjectConn=nil
+}
+local function getCam()
+    return workspace.CurrentCamera
+end
+local function restoreCamera()
+    local cam=getCam()
+    if not cam then
+        return
+    end
+    if CamStab.SubjectConn then
+        CamStab.SubjectConn:Disconnect()
+        CamStab.SubjectConn=nil
+    end
+    local char=LocalPlayer.Character
+    if char then
+        local hum=char:FindFirstChildOfClass"Humanoid"
+        if hum then
+            cam.CameraSubject=hum
+        end
+    end
+    cam.CameraType=Enum.CameraType.Custom
+end
+local function startStabilize()
+    local cam=getCam()
+    if not cam then
+        return
+    end
+    if CamStab.Connection then
+        CamStab.Connection:Disconnect()
+        CamStab.Connection=nil
+    end
+    if CamStab.SubjectConn then
+        CamStab.SubjectConn:Disconnect()
+        CamStab.SubjectConn=nil
+    end
+    if CamStab.Mode=="\231\168\179\229\174\154\232\183\159\233\154\143"then
+        local function setSubject()
+            local char=LocalPlayer.Character
+            if char then
+                local hrp=char:FindFirstChild"HumanoidRootPart"
+                if hrp then
+                    cam.CameraSubject=hrp
+                end
+            end
+        end
+        setSubject()
+        CamStab.SubjectConn=RunService.Heartbeat:Connect(function()
+            if not CamStab.Enabled then
+                return
+            end
+            local char=LocalPlayer.Character
+            if char then
+                local hrp=char:FindFirstChild"HumanoidRootPart"
+                if hrp and cam.CameraSubject~=hrp then
+                    cam.CameraSubject=hrp
+                end
+            end
+        end)
+    end
+    if CamStab.Mode=="\229\155\186\229\174\154\230\156\157\229\144\145"then
+        cam.CameraType=Enum.CameraType.Scriptable
+        local lockedRot=cam.CFrame-cam.CFrame.Position
+        CamStab.Connection=RunService.RenderStepped:Connect(function()
+            if not CamStab.Enabled then
+                return
+            end
+            local c=getCam()
+            if not c then
+                return
+            end
+            local char=LocalPlayer.Character
+            if char then
+                local hrp=char:FindFirstChild"HumanoidRootPart"
+                if hrp then
+                    local pos=hrp.Position+Vector3 .new(0,2,0)
+                    c.CFrame=CFrame.new(pos)*lockedRot
+                end
+            end
+        end)
+    end
+    if CamStab.Mode=="\230\138\151\230\138\150\229\138\168"then
+        cam.CameraType=Enum.CameraType.Custom
+        CamStab.LastCFrame=nil
+        CamStab.Connection=RunService.RenderStepped:Connect(function()
+            if not CamStab.Enabled then
+                return
+            end
+            local c=getCam()
+            if not c then
+                return
+            end
+            local currentCF=c.CFrame
+            if not CamStab.LastCFrame then
+                CamStab.LastCFrame=currentCF
+            else
+                local smooth=math.clamp(CamStab.Smoothness,0,0.95)
+                local newCF=CamStab.LastCFrame:Lerp(currentCF,1-smooth)
+                c.CFrame=CFrame.new(newCF.Position)*(currentCF-currentCF.Position)
+                CamStab.LastCFrame=c.CFrame
+            end
+        end)
+    end
+end
+local function stopStabilize()
+    if CamStab.Connection then
+        CamStab.Connection:Disconnect()
+        CamStab.Connection=nil
+    end
+    if CamStab.SubjectConn then
+        CamStab.SubjectConn:Disconnect()
+        CamStab.SubjectConn=nil
+    end
+    restoreCamera()
+    CamStab.LastCFrame=nil
+end
+LocalPlayer.CharacterAdded:Connect(function()
+    if CamStab.Enabled then
+        task.wait(1)
+        stopStabilize()
+        CamStab.Enabled=true
+        startStabilize()
+    end
+end)
+local fcCamLeft=Tabs.fc:AddLeftGroupbox"\232\167\134\232\167\146\231\168\179\229\174\154"
+local fcCamRight=Tabs.fc:AddRightGroupbox"\232\167\134\232\167\146\229\143\130\230\149\176"
+local fcFlyLeft=Tabs.fc:AddLeftGroupbox"\233\163\158\232\189\166\232\132\154\230\156\172"
+fcFlyLeft:AddButton{
+    Text="\240\159\154\151 \229\144\175\229\138\168\233\163\158\232\189\166\232\132\154\230\156\172",
+    Func=function()
+        loadstring(game:HttpGet"https://raw.githubusercontent.com/ggsq1741-debug/BAL/refs/heads/main/GUI.lua")()
+        Library:Notify{
+            Title="\233\163\158\232\189\166\232\132\154\230\156\172",
+            Text="\229\183\178\229\138\160\232\189\189\239\188\140\232\175\183\230\159\165\231\156\139\230\150\176\229\135\186\231\142\176\231\154\132\230\130\172\230\181\174\230\140\137\233\146\174",
+            Duration=3
+        }
+    end
+}
+fcCamLeft:AddToggle("CamStab_Enable",{
+    Text="\229\144\175\231\148\168\232\167\134\232\167\146\231\168\179\229\174\154\239\188\136\233\152\178\230\153\131\229\138\168\239\188\137",
+    Default=false,
+    Tooltip="\229\188\128\229\144\175\229\144\142\232\167\134\232\167\146\228\184\141\229\134\141\230\153\131\229\138\168",
+    Callback=function(v)
+        CamStab.Enabled=v
+        if v then
+            startStabilize()
+        else
+            stopStabilize()
+        end
+    end
+})
+fcCamLeft:AddDropdown("CamStab_Mode",{
+    Text="\233\152\178\230\138\150\230\168\161\229\188\143",
+    Values={
+        "\231\168\179\229\174\154\232\183\159\233\154\143",
+        "\229\155\186\229\174\154\230\156\157\229\144\145",
+        "\230\138\151\230\138\150\229\138\168"
+    },
+    Default="\231\168\179\229\174\154\232\183\159\233\154\143",
+    Callback=function(v)
+        CamStab.Mode=v
+        if CamStab.Enabled then
+            stopStabilize()
+            CamStab.Enabled=true
+            startStabilize()
+        end
+    end
+})
+fcCamLeft:AddButton("CamStab_Reapply",{
+    Text="\233\135\141\230\150\176\229\186\148\231\148\168\231\168\179\229\174\154",
+    Func=function()
+        if not CamStab.Enabled then
+            Library:Notify{
+                Title="\230\143\144\231\164\186",
+                Text="\232\175\183\229\133\136\229\188\128\229\144\175\228\184\187\229\188\128\229\133\179",
+                Duration=2
+            }
+            return
+        end
+        stopStabilize()
+        CamStab.Enabled=true
+        startStabilize()
+        Library:Notify{
+            Title="\229\183\178\233\135\141\230\150\176\229\186\148\231\148\168",
+            Text="\232\167\134\232\167\146\231\168\179\229\174\154\229\183\178\231\148\159\230\149\136",
+            Duration=2
+        }
+    end
+})
+fcCamRight:AddSlider("CamStab_Smooth",{
+    Text="\229\185\179\230\187\145\231\168\139\229\186\166\239\188\136\230\138\151\230\138\150\229\138\168\230\168\161\229\188\143\239\188\137",
+    Desc="\232\182\138\229\164\167\232\182\138\231\168\179\239\188\140\228\189\134\232\189\172\229\144\145\232\182\138\232\191\159\233\146\157",
+    Default=0.3,
+    Min=0,
+    Max=0.9,
+    Rounding=2,
+    Callback=function(v)
+        CamStab.Smoothness=v
+    end
+})
 local jxGroup=Tabs.jx:AddLeftGroupbox"\232\191\156\231\168\139\229\135\187\230\157\128\228\184\142\233\155\183\232\190\190"
 jxGroup:AddButton{
     Text="\232\191\156\231\168\139\228\188\160\233\128\129\229\135\187\230\157\128",
