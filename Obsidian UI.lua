@@ -845,7 +845,7 @@ local fcCamLeft=Tabs.fc:AddLeftGroupbox"\232\167\134\232\167\146\231\168\179\229
 local fcCamRight=Tabs.fc:AddRightGroupbox"\232\167\134\232\167\146\229\143\130\230\149\176"
 local fcFlyLeft=Tabs.fc:AddLeftGroupbox"\233\163\158\232\189\166\232\132\154\230\156\172"
 fcFlyLeft:AddButton{
-    Text="\240\159\154\151 \229\144\175\229\138\168\233\163\158\232\189\166\232\132\154\230\156\172",
+    Text="\229\144\175\229\138\168\233\163\158\232\189\166\232\132\154\230\156\172",
     Func=function()
         loadstring(game:HttpGet"https://raw.githubusercontent.com/ggsq1741-debug/BAL/refs/heads/main/GUI.lua")()
         Library:Notify{
