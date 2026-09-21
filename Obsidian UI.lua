@@ -132,6 +132,7 @@ Window.BackgroundTransparency=0.9
 local Tabs={
     gg=Window:AddTab("\229\133\172\229\145\138","megaphone"),
     wj=Window:AddTab("\231\142\169\229\174\182","users"),
+    sf=Window:AddTab("\231\148\169\233\163\158","rbxassetid://7733799371"),
     fc=Window:AddTab("\228\186\154\230\180\178\232\189\166\231\142\139","rbxassetid://7733708835"),
     jx=Window:AddTab("\232\191\156\231\168\139\229\135\187\230\157\128+\233\155\183\232\190\190","crown"),
     gh=Window:AddTab("\229\133\137\231\142\175\232\174\190\231\189\174","crown"),
@@ -155,7 +156,7 @@ ggLeft:AddDivider()
 ggLeft:AddLabel"\230\155\180\230\150\176\229\134\133\229\174\185\239\188\154"
 ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\233\163\158\232\189\166\229\133\137\231\142\175\231\173\137"
 ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\231\148\181\232\132\145\230\137\139\230\156\186\231\171\175\233\128\154\231\148\168\233\163\158\232\189\166"
-ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\229\174\158\228\189\147\233\163\158\232\161\140\233\128\174\230\141\149\229\133\137\231\142\175"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\228\186\134\230\173\187\240\159\144\180\229\138\159\232\131\189\231\148\169\233\163\158"
 ggLeft:AddDivider()
 ggRight:AddLabel"\228\189\191\231\148\168\230\143\144\231\164\186"
 ggRight:AddDivider()
@@ -711,6 +712,601 @@ miscGroup:AddButton{
         end)
     end
 }
+local Players=game:GetService"Players"
+local RunService=game:GetService"RunService"
+local UserInputService=game:GetService"UserInputService"
+local Workspace=game:GetService"Workspace"
+local LocalPlayer=Players.LocalPlayer
+local Camera=Workspace.CurrentCamera
+local CONFIG={
+    SwingRange=8,
+    SwingFreq=20,
+    SwingSpeed=0.03,
+    TeleportPerTick=8,
+    AngularForce=200000,
+    VelocityMultiplier=3,
+    TargetForce=2000,
+    TargetAngular=500000,
+    TeleportDuration=4,
+    CameraOffset=Vector3 .new(0,3,15)
+}
+local function SafeGetCharacter(player)
+    if not player or not player.Parent then
+        return nil
+    end
+    local char=player.Character
+    if not char or not char.Parent then
+        return nil
+    end
+    return char
+end
+local function SafeGetHRP(char)
+    if not char then
+        return nil
+    end
+    return char:FindFirstChild"HumanoidRootPart"
+end
+local function SafeGetHum(char)
+    if not char then
+        return nil
+    end
+    return char:FindFirstChildOfClass"Humanoid"
+end
+local cameraLock={
+    Subject=nil,
+    Conn=nil
+}
+local function LockCamera(subject)
+    cameraLock.Subject=subject
+    Camera.CameraType=Enum.CameraType.Scriptable
+    Camera.CameraSubject=subject
+    if cameraLock.Conn then
+        cameraLock.Conn:Disconnect()
+    end
+    cameraLock.Conn=RunService.RenderStepped:Connect(function()
+        local subj=cameraLock.Subject
+        if not subj or not subj.Parent then
+            return
+        end
+        local targetPos=subj.Position
+        local camPos=targetPos+CONFIG.CameraOffset
+        Camera.CFrame=CFrame.new(camPos,targetPos)
+        Camera.Focus=CFrame.new(targetPos)
+    end)
+end
+local function UnlockCamera()
+    if cameraLock.Conn then
+        cameraLock.Conn:Disconnect()
+        cameraLock.Conn=nil
+    end
+    cameraLock.Subject=nil
+    local char=LocalPlayer.Character
+    if char then
+        local hum=char:FindFirstChildOfClass"Humanoid"
+        if hum then
+            Camera.CameraSubject=hum
+            Camera.CameraType=Enum.CameraType.Custom
+        end
+    end
+end
+local selfFlingConn=nil
+local selfFlingStepConn=nil
+local function EnableSelfFling()
+    if selfFlingConn then
+        return
+    end
+    selfFlingConn=RunService.Heartbeat:Connect(function()
+        local char=LocalPlayer.Character
+        if not char then
+            return
+        end
+        local hrp=SafeGetHRP(char)
+        local hum=SafeGetHum(char)
+        if not hrp or not hum then
+            return
+        end
+        pcall(function()
+            hum.PlatformStand=false
+            hum.Sit=false
+            hum.AutoRotate=true
+            local state=hum:GetState()
+            if state==Enum.HumanoidStateType.Physics or state==Enum.HumanoidStateType.FallingDown or state==Enum.HumanoidStateType.Ragdoll then
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+            local vel=hrp.AssemblyLinearVelocity
+            local safeY=math.clamp(vel.Y,-40,40)
+            hrp.AssemblyAngularVelocity=Vector3 .new(CONFIG.AngularForce,CONFIG.AngularForce,CONFIG.AngularForce)
+            hrp.AssemblyLinearVelocity=Vector3 .new(vel.X*CONFIG.VelocityMultiplier,safeY,vel.Z*CONFIG.VelocityMultiplier)
+            RunService.RenderStepped:Wait()
+            if hrp and hrp.Parent then
+                hrp.AssemblyAngularVelocity=Vector3 .zero
+            end
+        end)
+    end)
+    selfFlingStepConn=RunService.Stepped:Connect(function()
+        for _,p in pairs(Players:GetPlayers())do
+            if p~=LocalPlayer and p.Character then
+                for _,part in pairs(p.Character:GetDescendants())do
+                    if part:IsA"BasePart"then
+                        pcall(function()
+                            part.CanCollide=false
+                        end)
+                    end
+                end
+            end
+        end
+    end)
+end
+local function DisableSelfFling()
+    if selfFlingConn then
+        selfFlingConn:Disconnect()
+        selfFlingConn=nil
+    end
+    if selfFlingStepConn then
+        selfFlingStepConn:Disconnect()
+        selfFlingStepConn=nil
+    end
+end
+local function ForceTarget(targetPlayer)
+    if not targetPlayer then
+        return
+    end
+    local char=SafeGetCharacter(targetPlayer)
+    if not char then
+        return
+    end
+    local hrp=SafeGetHRP(char)
+    if not hrp then
+        return
+    end
+    pcall(function()
+        hrp:SetNetworkOwner(LocalPlayer)
+    end)
+    pcall(function()
+        hrp.AssemblyLinearVelocity=Vector3 .new(CONFIG.TargetForce,CONFIG.TargetForce,CONFIG.TargetForce)
+        hrp.AssemblyAngularVelocity=Vector3 .new(CONFIG.TargetAngular,CONFIG.TargetAngular,CONFIG.TargetAngular)
+    end)
+    local hum=SafeGetHum(char)
+    if hum then
+        pcall(function()
+            hum.PlatformStand=true
+            hum:ChangeState(Enum.HumanoidStateType.Physics)
+        end)
+    end
+end
+local isTeleportFlying=false
+local function TeleportFly(targetPlayer,duration)
+    if isTeleportFlying then
+        Library:Notify("\230\173\163\229\156\168\230\137\167\232\161\140\228\184\173\239\188\140\232\175\183\231\168\141\229\128\153",2)
+        return false
+    end
+    duration=duration or CONFIG.TeleportDuration
+    if not targetPlayer then
+        Library:Notify("\231\155\174\230\160\135\228\184\186\231\169\186",2)
+        return false
+    end
+    local targetChar=SafeGetCharacter(targetPlayer)
+    if not targetChar then
+        Library:Notify("\231\155\174\230\160\135\228\184\141\229\156\168\230\184\184\230\136\143\228\184\173",2)
+        return false
+    end
+    local myChar=SafeGetCharacter(LocalPlayer)
+    local myHrp=SafeGetHRP(myChar)
+    if not myHrp then
+        Library:Notify("\232\135\170\229\183\177\230\178\161\230\156\137\232\167\146\232\137\178",2)
+        return false
+    end
+    isTeleportFlying=true
+    Library:Notify("\229\188\128\229\167\139\231\148\169\233\163\158: "..targetPlayer.Name,2)
+    local originalPosition=myHrp.Position
+    LockCamera(myHrp)
+    EnableSelfFling()
+    local startTime=tick()
+    local direction=1
+    local lastSwitch=tick()
+    local detected=false
+    while tick()-startTime<duration do
+        local targetChar2=SafeGetCharacter(targetPlayer)
+        if not targetChar2 then
+            break
+        end
+        local targetHrp=SafeGetHRP(targetChar2)
+        if targetHrp then
+            if tick()-lastSwitch>CONFIG.SwingSpeed then
+                direction=direction*-1
+                lastSwitch=tick()
+            end
+            local currentMyChar=SafeGetCharacter(LocalPlayer)
+            local currentMyHrp=SafeGetHRP(currentMyChar)
+            if currentMyHrp then
+                for i=1,CONFIG.TeleportPerTick do
+                    local offset=direction*CONFIG.SwingRange*(i/CONFIG.TeleportPerTick)
+                    local targetPos=targetHrp.Position+targetHrp.CFrame.LookVector*offset
+                    pcall(function()
+                        currentMyHrp.CFrame=CFrame.new(targetPos)
+                    end)
+                end
+                ForceTarget(targetPlayer)
+            end
+            if not detected then
+                local speed=targetHrp.AssemblyLinearVelocity.Magnitude
+                if speed>30 then
+                    detected=true
+                    Library:Notify(" \231\148\169\233\163\158\230\136\144\229\138\159: "..targetPlayer.Name,3)
+                end
+            end
+        end
+        task.wait(0.02)
+    end
+    local finalMyChar=SafeGetCharacter(LocalPlayer)
+    local finalHrp=SafeGetHRP(finalMyChar)
+    if finalHrp then
+        pcall(function()
+            finalHrp.CFrame=CFrame.new(originalPosition)
+            finalHrp.AssemblyAngularVelocity=Vector3 .zero
+            finalHrp.AssemblyLinearVelocity=Vector3 .zero
+        end)
+    end
+    DisableSelfFling()
+    UnlockCamera()
+    isTeleportFlying=false
+    Library:Notify(detected and"\231\148\169\233\163\158\229\174\140\230\136\144"or"\231\148\169\233\163\158\229\164\177\232\180\165",3)
+    return detected
+end
+local LoopFly={
+    Running=false,
+    Target=nil,
+    OriginalPosition=nil,
+    LoopConn=nil,
+    LeaveConn=nil
+}
+local function LoopFly_Start(targetPlayer)
+    if LoopFly.Running then
+        LoopFly_Stop()
+        task.wait(0.2)
+    end
+    if not targetPlayer then
+        Library:Notify("\231\155\174\230\160\135\228\184\186\231\169\186",2)
+        return false
+    end
+    local targetChar=SafeGetCharacter(targetPlayer)
+    if not targetChar then
+        Library:Notify("\231\155\174\230\160\135\228\184\141\229\156\168\230\184\184\230\136\143\228\184\173",2)
+        return false
+    end
+    local myChar=SafeGetCharacter(LocalPlayer)
+    local myHrp=SafeGetHRP(myChar)
+    if not myHrp then
+        Library:Notify("\232\135\170\229\183\177\230\178\161\230\156\137\232\167\146\232\137\178",2)
+        return false
+    end
+    LoopFly.Running=true
+    LoopFly.Target=targetPlayer
+    LoopFly.OriginalPosition=myHrp.Position
+    Library:Notify("\229\188\128\229\167\139\229\190\170\231\142\175\231\148\169\233\163\158: "..targetPlayer.Name,2)
+    LockCamera(myHrp)
+    EnableSelfFling()
+    LoopFly.LoopConn=RunService.Heartbeat:Connect(function()
+        if not LoopFly.Running then
+            return
+        end
+        local currentTargetChar=SafeGetCharacter(LoopFly.Target)
+        if not currentTargetChar then
+            LoopFly_Stop()
+            return
+        end
+        local currentTargetHrp=SafeGetHRP(currentTargetChar)
+        if not currentTargetHrp then
+            return
+        end
+        local dir=math.sin(tick()*CONFIG.SwingFreq)
+        local offset=dir*CONFIG.SwingRange
+        local currentMyChar=SafeGetCharacter(LocalPlayer)
+        local currentMyHrp=SafeGetHRP(currentMyChar)
+        if currentMyHrp then
+            for i=1,CONFIG.TeleportPerTick do
+                local subOffset=offset*(i/CONFIG.TeleportPerTick)
+                local targetPos=currentTargetHrp.Position+currentTargetHrp.CFrame.LookVector*subOffset
+                pcall(function()
+                    currentMyHrp.CFrame=CFrame.new(targetPos)
+                end)
+            end
+            ForceTarget(LoopFly.Target)
+        end
+    end)
+    LoopFly.LeaveConn=Players.PlayerRemoving:Connect(function(p)
+        if p==LoopFly.Target and LoopFly.Running then
+            LoopFly_Stop()
+        end
+    end)
+    return true
+end
+function LoopFly_Stop()
+    if not LoopFly.Running then
+        return
+    end
+    LoopFly.Running=false
+    if LoopFly.LoopConn then
+        LoopFly.LoopConn:Disconnect()
+        LoopFly.LoopConn=nil
+    end
+    if LoopFly.LeaveConn then
+        LoopFly.LeaveConn:Disconnect()
+        LoopFly.LeaveConn=nil
+    end
+    local myChar=SafeGetCharacter(LocalPlayer)
+    local myHrp=SafeGetHRP(myChar)
+    if myHrp and LoopFly.OriginalPosition then
+        pcall(function()
+            myHrp.CFrame=CFrame.new(LoopFly.OriginalPosition)
+            myHrp.AssemblyAngularVelocity=Vector3 .zero
+            myHrp.AssemblyLinearVelocity=Vector3 .zero
+        end)
+    end
+    DisableSelfFling()
+    UnlockCamera()
+    LoopFly.Target=nil
+    LoopFly.OriginalPosition=nil
+    Library:Notify("\229\183\178\229\129\156\230\173\162\229\190\170\231\142\175\231\148\169\233\163\158",2)
+end
+local selectedPlayer=nil
+local sfLeft=Tabs.sf:AddLeftGroupbox"\231\148\169\233\163\158\229\138\159\232\131\189"
+sfLeft:AddDropdown("Sf_PlayerSelect",{
+    Text="\233\128\137\230\139\169\231\155\174\230\160\135\231\142\169\229\174\182",
+    Values=(function()
+        local list={}
+        for _,p in ipairs(Players:GetPlayers())do
+            if p~=LocalPlayer then
+                table.insert(list,p.Name)
+            end
+        end
+        return list
+    end)(),
+    Default=nil,
+    Callback=function(value)
+        if value then
+            selectedPlayer=Players:FindFirstChild(value)
+            if selectedPlayer then
+                Library:Notify("\229\183\178\233\128\137\230\139\169: "..selectedPlayer.Name,2)
+                if LoopFly.Running then
+                    LoopFly_Stop()
+                    task.wait(0.2)
+                    LoopFly_Start(selectedPlayer)
+                end
+            end
+        end
+    end
+})
+sfLeft:AddButton{
+    Text="\229\136\183\230\150\176\231\142\169\229\174\182\229\136\151\232\161\168",
+    Func=function()
+        local list={}
+        for _,p in ipairs(Players:GetPlayers())do
+            if p~=LocalPlayer then
+                table.insert(list,p.Name)
+            end
+        end
+        local dropdown=Options.Sf_PlayerSelect
+        if dropdown and dropdown.SetValues then
+            dropdown:SetValues(list)
+        end
+        Library:Notify("\229\183\178\229\136\183\230\150\176\239\188\140\229\133\177 "..#list.." \228\184\170\231\142\169\229\174\182",2)
+    end
+}
+sfLeft:AddDivider()
+sfLeft:AddButton{
+    Text=" \228\188\160\233\128\129\231\148\169\233\163\158\239\188\136\228\184\128\230\172\161\239\188\137",
+    Func=function()
+        if not selectedPlayer then
+            Library:Notify(" \232\175\183\229\133\136\233\128\137\230\139\169\231\142\169\229\174\182",2)
+            return
+        end
+        if isTeleportFlying then
+            Library:Notify(" \230\173\163\229\156\168\230\137\167\232\161\140\228\184\173",2)
+            return
+        end
+        task.spawn(function()
+            TeleportFly(selectedPlayer)
+        end)
+    end
+}
+sfLeft:AddToggle("Sf_LoopFly",{
+    Text=" \229\190\170\231\142\175\231\148\169\233\163\158",
+    Default=false,
+    Callback=function(state)
+        if state then
+            if not selectedPlayer then
+                Library:Notify("\232\175\183\229\133\136\233\128\137\230\139\169\231\142\169\229\174\182",2)
+                Toggles.Sf_LoopFly:SetValue(false)
+                return
+            end
+            LoopFly_Start(selectedPlayer)
+        else
+            LoopFly_Stop()
+        end
+    end
+})
+local sfRight=Tabs.sf:AddRightGroupbox"\229\143\130\230\149\176\232\174\190\231\189\174"
+sfRight:AddSlider("Sf_SwingRange",{
+    Text="\230\145\134\229\138\168\229\185\133\229\186\166",
+    Min=1,
+    Max=20,
+    Default=8,
+    Rounding=0,
+    Suffix=" \231\177\179",
+    Callback=function(v)
+        CONFIG.SwingRange=v
+    end
+})
+sfRight:AddSlider("Sf_SwingFreq",{
+    Text="\230\145\134\229\138\168\233\162\145\231\142\135",
+    Min=1,
+    Max=50,
+    Default=20,
+    Rounding=0,
+    Suffix=" Hz",
+    Callback=function(v)
+        CONFIG.SwingFreq=v
+    end
+})
+sfRight:AddSlider("Sf_TeleportPerTick",{
+    Text="\230\175\143\230\172\161\228\188\160\233\128\129\230\172\161\230\149\176",
+    Min=1,
+    Max=20,
+    Default=8,
+    Rounding=0,
+    Callback=function(v)
+        CONFIG.TeleportPerTick=v
+    end
+})
+sfRight:AddSlider("Sf_AngularForce",{
+    Text="\232\135\170\231\148\169\232\167\146\233\128\159\229\186\166",
+    Min=10000,
+    Max=500000,
+    Default=200000,
+    Rounding=0,
+    Callback=function(v)
+        CONFIG.AngularForce=v
+    end
+})
+sfRight:AddSlider("Sf_VelocityMultiplier",{
+    Text="\233\128\159\229\186\166\229\128\141\231\142\135",
+    Min=1,
+    Max=10,
+    Default=3,
+    Rounding=1,
+    Suffix=" x",
+    Callback=function(v)
+        CONFIG.VelocityMultiplier=v
+    end
+})
+sfRight:AddSlider("Sf_TargetForce",{
+    Text="\231\155\174\230\160\135\230\150\189\229\138\155",
+    Min=100,
+    Max=10000,
+    Default=2000,
+    Rounding=0,
+    Callback=function(v)
+        CONFIG.TargetForce=v
+    end
+})
+sfRight:AddSlider("Sf_TargetAngular",{
+    Text="\231\155\174\230\160\135\232\167\146\233\128\159\229\186\166",
+    Min=10000,
+    Max=2000000,
+    Default=500000,
+    Rounding=0,
+    Callback=function(v)
+        CONFIG.TargetAngular=v
+    end
+})
+sfRight:AddSlider("Sf_Duration",{
+    Text="\228\188\160\233\128\129\231\148\169\233\163\158\230\151\182\233\149\191",
+    Min=1,
+    Max=10,
+    Default=4,
+    Rounding=0,
+    Suffix=" \231\167\146",
+    Callback=function(v)
+        CONFIG.TeleportDuration=v
+    end
+})
+sfRight:AddInput("Sf_CameraOffsetY",{
+    Text="\231\155\184\230\156\186Y\229\129\143\231\167\187",
+    Default="3",
+    Placeholder="3",
+    Numeric=true,
+    Callback=function(v)
+        local n=tonumber(v)
+        if n then
+            CONFIG.CameraOffset=Vector3 .new(0,n,CONFIG.CameraOffset.Z)
+        end
+    end
+})
+sfRight:AddInput("Sf_CameraOffsetZ",{
+    Text="\231\155\184\230\156\186Z\229\129\143\231\167\187",
+    Default="15",
+    Placeholder="15",
+    Numeric=true,
+    Callback=function(v)
+        local n=tonumber(v)
+        if n then
+            CONFIG.CameraOffset=Vector3 .new(0,CONFIG.CameraOffset.Y,n)
+        end
+    end
+})
+sfRight:AddDivider()
+sfRight:AddButton{
+    Text="\229\174\137\229\133\168\230\168\161\229\188\143",
+    Func=function()
+        CONFIG.SwingRange=4
+        CONFIG.SwingFreq=10
+        CONFIG.TeleportPerTick=4
+        CONFIG.AngularForce=80000
+        CONFIG.VelocityMultiplier=1.5
+        CONFIG.TargetForce=1000
+        CONFIG.TargetAngular=200000
+        Library:Notify("\229\183\178\229\186\148\231\148\168\228\191\157\229\174\136\230\168\161\229\188\143",2)
+    end
+}
+sfRight:AddButton{
+    Text="\230\154\180\229\138\155\230\168\161\229\188\143",
+    Func=function()
+        CONFIG.SwingRange=15
+        CONFIG.SwingFreq=30
+        CONFIG.TeleportPerTick=15
+        CONFIG.AngularForce=500000
+        CONFIG.VelocityMultiplier=5
+        CONFIG.TargetForce=5000
+        CONFIG.TargetAngular=1000000
+        Library:Notify("\229\183\178\229\186\148\231\148\168\230\154\180\229\138\155\230\168\161\229\188\143",2)
+    end
+}
+Players.PlayerAdded:Connect(function()
+    task.wait(0.2)
+    local list={}
+    for _,p in ipairs(Players:GetPlayers())do
+        if p~=LocalPlayer then
+            table.insert(list,p.Name)
+        end
+    end
+    local dropdown=Options.Sf_PlayerSelect
+    if dropdown and dropdown.SetValues then
+        pcall(function()
+            dropdown:SetValues(list)
+        end)
+    end
+end)
+Players.PlayerRemoving:Connect(function(p)
+    task.wait(0.2)
+    local list={}
+    for _,pl in ipairs(Players:GetPlayers())do
+        if pl~=LocalPlayer then
+            table.insert(list,pl.Name)
+        end
+    end
+    local dropdown=Options.Sf_PlayerSelect
+    if dropdown and dropdown.SetValues then
+        pcall(function()
+            dropdown:SetValues(list)
+        end)
+    end
+    if p==selectedPlayer then
+        selectedPlayer=nil
+    end
+    if LoopFly.Target==p and LoopFly.Running then
+        LoopFly_Stop()
+    end
+end)
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if LoopFly.Running then
+        LoopFly_Stop()
+    end
+    UnlockCamera()
+end)
+Library:Notify("\231\148\169\233\163\158\229\138\159\232\131\189\229\183\178\229\138\160\232\189\189\229\136\176 sf \230\160\135\231\173\190",3)
 local CamStab={
     Enabled=false,
     Mode="\231\168\179\229\174\154\232\183\159\233\154\143",
