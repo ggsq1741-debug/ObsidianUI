@@ -127,7 +127,7 @@ local Window=Library:CreateWindow{
     Resizable=true,
     MobileButtonsSide="f"
 }
-Window:SetBackgroundImage"https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/33490c2c-02d8-4dc8-b24a-0e0478a45b8f.png"
+Window:SetBackgroundImage"https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/ad2a1a05-be7b-4adf-9a77-008a62464197.png"
 Window.BackgroundTransparency=0.9
 local Tabs={
     gg=Window:AddTab("\229\133\172\229\145\138","megaphone"),
@@ -137,6 +137,7 @@ local Tabs={
     jx=Window:AddTab("\232\191\156\231\168\139\229\135\187\230\157\128+\233\155\183\232\190\190","crown"),
     gh=Window:AddTab("\229\133\137\231\142\175\232\174\190\231\189\174","crown"),
     bot=Window:AddTab("\231\158\132\229\135\134","target"),
+    zj=Window:AddTab("\229\173\144\232\191\189\233\157\153\233\187\152\231\158\132\229\135\134","target"),
     ESP=Window:AddTab("ESP","eye"),
     ESPP=Window:AddTab("ESP2","eye"),
     pg=Window:AddTab("\232\139\185\230\158\156\231\171\175ESP","eye"),
@@ -155,7 +156,7 @@ ggLeft:AddLabel"\229\148\174\229\144\142\49\49\50\53\53\49\52\50\54\49"
 ggLeft:AddDivider()
 ggLeft:AddLabel"\230\155\180\230\150\176\229\134\133\229\174\185\239\188\154"
 ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\233\163\158\232\189\166\229\133\137\231\142\175\231\173\137"
-ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\231\148\181\232\132\145\230\137\139\230\156\186\231\171\175\233\128\154\231\148\168\233\163\158\232\189\166"
+ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\229\173\144\229\188\185\232\191\189\232\184\170\229\143\175\232\131\189\230\156\137Bug"
 ggLeft:AddLabel"\226\128\162 \230\150\176\229\162\158\228\186\134\230\173\187\240\159\144\180\229\138\159\232\131\189\231\148\169\233\163\158"
 ggLeft:AddDivider()
 ggRight:AddLabel"\228\189\191\231\148\168\230\143\144\231\164\186"
@@ -169,8 +170,8 @@ ggRight:AddDivider()
 ggRight:AddLabel"3. ESP \229\166\130\230\158\156\230\178\161\230\152\190\231\164\186"
 ggRight:AddLabel"   \229\133\136\230\138\138\230\128\187\229\188\128\229\133\179\230\137\147\229\188\128"
 ggRight:AddDivider()
-ggRight:AddLabel"4. \229\135\186\231\142\176\229\141\161\233\161\191\229\143\175\228\187\165"
-ggRight:AddLabel"   \229\133\179\230\142\137\228\184\141\229\191\133\232\166\129\231\154\132\229\138\159\232\131\189"
+ggRight:AddLabel"4. \229\173\144\229\188\185\232\191\189\232\184\170\233\151\174\233\162\152"
+ggRight:AddLabel"  \229\142\159\231\137\136\229\173\144\229\188\185\232\191\189\232\184\170\231\172\172\228\184\137\228\186\186\231\167\176\228\188\154\232\167\134\232\167\146\230\153\131\229\138\168\229\188\186\229\136\182\228\191\174\229\164\141\229\143\175\232\131\189\228\188\154\230\156\137\228\184\128\229\174\154\230\166\130\231\142\135\230\151\160\230\179\149\229\135\187\228\184\173"
 ggRight:AddDivider()
 ggRight:AddButton{
     Text="\229\164\141\229\136\182\229\148\174\229\144\142\231\190\164",
@@ -2159,6 +2160,343 @@ btGroup:AddSlider("BT_Size",{
         btHbSize=value
     end
 })
+local SilentAimSettings={
+    Enabled=false,
+    TeamCheck=false,
+    VisibleCheck=false,
+    TargetPart="HumanoidRootPart",
+    FOVRadius=130,
+    FOVVisible=false,
+    ShowSilentAimTarget=false,
+    HitChance=100,
+    FixedFOV=true,
+    TargetIndicatorRadius=20,
+    MaxDistance=500,
+    PriorityMode="\229\135\134\230\152\159\230\156\128\232\191\145",
+    Wallbang=false,
+    ShowTracer=false,
+    TracerFromBottom=true,
+    TracerThickness=1,
+    TracerTransparency=0.3
+}
+local sa_currentTargetPart=nil
+local sa_lastTargetCharacter=nil
+local sa_target_circle=Drawing.new"Circle"
+sa_target_circle.Visible=false
+sa_target_circle.Thickness=2
+sa_target_circle.Filled=false
+sa_target_circle.Color=Color3 .fromRGB(255,0,0)
+local sa_tracer=Drawing.new"Line"
+sa_tracer.Visible=false
+sa_tracer.Thickness=1
+sa_tracer.Transparency=0.3
+sa_tracer.Color=Color3 .fromRGB(255,0,0)
+sa_tracer.ZIndex=999
+local sa_FOVGui=Instance.new("ScreenGui",LocalPlayer:WaitForChild"PlayerGui")
+sa_FOVGui.Name="SA_FOVGui"
+sa_FOVGui.ResetOnSpawn=false
+sa_FOVGui.IgnoreGuiInset=true
+sa_FOVGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+sa_FOVGui.Enabled=false
+local sa_FOVFrame=Instance.new("Frame",sa_FOVGui)
+sa_FOVFrame.AnchorPoint=Vector2 .new(0.5,0.5)
+sa_FOVFrame.Position=UDim2 .fromScale(0.5,0.5)
+sa_FOVFrame.BackgroundTransparency=1
+sa_FOVFrame.Size=UDim2 .fromOffset(260,260)
+local sa_FOVStroke=Instance.new("UIStroke",sa_FOVFrame)
+sa_FOVStroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+sa_FOVStroke.Thickness=1
+sa_FOVStroke.Transparency=0.5
+sa_FOVStroke.Color=Color3 .fromRGB(54,57,241)
+local sa_FOVCorner=Instance.new("UICorner",sa_FOVFrame)
+sa_FOVCorner.CornerRadius=UDim.new(1,0)
+local function SA_getScreenPos(v)
+    local p,on=Camera:WorldToViewportPoint(v)
+    return Vector2 .new(p.X,p.Y),on
+end
+local function SA_isVisible(part,origin)
+    if not part then
+        return false
+    end
+    local char=LocalPlayer.Character
+    if not char then
+        return false
+    end
+    local o=origin or Camera.CFrame.Position
+    local dir=part.Position-o
+    local rp=RaycastParams.new()
+    rp.FilterType=Enum.RaycastFilterType.Exclude
+    rp.FilterDescendantsInstances={
+        char,
+        part.Parent
+    }
+    return not workspace:Raycast(o,dir.Unit*dir.Magnitude,rp)
+end
+local function SA_getClosestPlayer()
+    local myChar=LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild"HumanoidRootPart"then
+        return nil
+    end
+    local myRoot=myChar.HumanoidRootPart
+    local aimPoint=SilentAimSettings.FixedFOV and(Camera.ViewportSize/2)or UserInputService:GetMouseLocation()
+    local list={}
+    for _,p in ipairs(Players:GetPlayers())do
+        if p~=LocalPlayer and not(SilentAimSettings.TeamCheck and p.Team==LocalPlayer.Team)then
+            local c=p.Character
+            local h=c and c:FindFirstChildOfClass"Humanoid"
+            if c and h and h.Health>0 then
+                local part=c:FindFirstChild(SilentAimSettings.TargetPart)or c:FindFirstChild"HumanoidRootPart"
+                if part then
+                    if not(SilentAimSettings.VisibleCheck and not SA_isVisible(part,myChar.Head.Position))then
+                        local dist=(myRoot.Position-part.Position).Magnitude
+                        if dist<=SilentAimSettings.MaxDistance then
+                            local sp,on=SA_getScreenPos(part.Position)
+                            if on then
+                                local fovDist=(aimPoint-sp).Magnitude
+                                if fovDist<=SilentAimSettings.FOVRadius then
+                                    table.insert(list,{
+                                        char=c,
+                                        fov=fovDist,
+                                        dist=dist,
+                                        health=h.Health
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if#list==0 then
+        return nil
+    end
+    table.sort(list,function(a,b)
+        if SilentAimSettings.PriorityMode=="\230\156\128\228\189\142\232\161\128\233\135\143"then
+            return a.health<b.health
+        elseif SilentAimSettings.PriorityMode=="\232\183\157\231\166\187\230\156\128\232\191\145"then
+            return a.dist<b.dist
+        else
+            return a.fov<b.fov
+        end
+    end)
+    return list[1].char
+end
+local zjLeft=Tabs.zj:AddLeftGroupbox"\228\184\187\232\174\190\231\189\174"
+local zjRight=Tabs.zj:AddRightGroupbox"\231\155\174\230\160\135"
+local zjFov=Tabs.zj:AddLeftGroupbox"FOV \229\156\136"
+local zjInd=Tabs.zj:AddRightGroupbox"\231\155\174\230\160\135\230\140\135\231\164\186\229\153\168"
+local zjTracer=Tabs.zj:AddRightGroupbox"\231\158\132\229\135\134\229\176\132\231\186\191"
+zjLeft:AddToggle("SA_Enabled",{
+    Text="\229\144\175\231\148\168\233\157\153\233\187\152\231\158\132\229\135\134",
+    Default=false,
+    Tooltip="\229\188\128\229\144\175\229\144\142\229\173\144\229\188\185\232\135\170\229\138\168\230\137\147\229\144\145\230\149\140\228\186\186"
+}):OnChanged(function(v)
+    SilentAimSettings.Enabled=v
+end)
+zjLeft:AddToggle("SA_TeamCheck",{
+    Text="\233\152\159\228\188\141\230\163\128\230\159\165",
+    Default=false
+}):OnChanged(function(v)
+    SilentAimSettings.TeamCheck=v
+end)
+zjLeft:AddToggle("SA_VisibleCheck",{
+    Text="\229\143\175\232\167\129\230\128\167\230\163\128\230\159\165",
+    Default=false
+}):OnChanged(function(v)
+    SilentAimSettings.VisibleCheck=v
+end)
+zjLeft:AddToggle("SA_Wallbang",{
+    Text="\231\169\191\229\162\153",
+    Default=false
+}):OnChanged(function(v)
+    SilentAimSettings.Wallbang=v
+end)
+zjLeft:AddSlider("SA_HitChance",{
+    Text="\229\145\189\228\184\173\231\142\135",
+    Default=100,
+    Min=0,
+    Max=100,
+    Rounding=1,
+    Suffix="%"
+}):OnChanged(function(v)
+    SilentAimSettings.HitChance=v
+end)
+zjRight:AddDropdown("SA_TargetPart",{
+    Text="\231\155\174\230\160\135\233\131\168\228\189\141",
+    Values={
+        "Head",
+        "HumanoidRootPart"
+    },
+    Default="HumanoidRootPart"
+}):OnChanged(function(v)
+    SilentAimSettings.TargetPart=v
+end)
+zjRight:AddDropdown("SA_Priority",{
+    Text="\228\188\152\229\133\136\230\168\161\229\188\143",
+    Values={
+        "\229\135\134\230\152\159\230\156\128\232\191\145",
+        "\232\183\157\231\166\187\230\156\128\232\191\145",
+        "\230\156\128\228\189\142\232\161\128\233\135\143"
+    },
+    Default="\229\135\134\230\152\159\230\156\128\232\191\145"
+}):OnChanged(function(v)
+    SilentAimSettings.PriorityMode=v
+end)
+zjRight:AddSlider("SA_MaxDist",{
+    Text="\230\156\128\229\164\167\232\183\157\231\166\187",
+    Default=500,
+    Min=10,
+    Max=2000,
+    Rounding=0,
+    Suffix=" studs"
+}):OnChanged(function(v)
+    SilentAimSettings.MaxDistance=v
+end)
+zjFov:AddToggle("SA_FOVVisible",{
+    Text="\230\152\190\231\164\186 FOV \229\156\136",
+    Default=false
+}):OnChanged(function(v)
+    sa_FOVGui.Enabled=v
+end)
+zjFov:AddSlider("SA_FOVRadius",{
+    Text="FOV \229\156\136\229\141\138\229\190\132",
+    Default=130,
+    Min=10,
+    Max=1000,
+    Rounding=0
+}):OnChanged(function(v)
+    sa_FOVFrame.Size=UDim2 .fromOffset(v*2,v*2)
+    SilentAimSettings.FOVRadius=v
+end)
+zjFov:AddToggle("SA_FixedFOV",{
+    Text="\229\155\186\229\174\154 FOV\239\188\136\229\177\143\229\185\149\228\184\173\229\191\131\239\188\137",
+    Default=true
+}):OnChanged(function(v)
+    SilentAimSettings.FixedFOV=v
+end)
+zjInd:AddToggle("SA_ShowTarget",{
+    Text="\230\152\190\231\164\186\230\140\135\231\164\186\229\153\168",
+    Default=false
+}):OnChanged(function(v)
+    SilentAimSettings.ShowSilentAimTarget=v
+end)
+zjInd:AddSlider("SA_TargetRadius",{
+    Text="\230\140\135\231\164\186\229\153\168\229\164\167\229\176\143",
+    Default=20,
+    Min=5,
+    Max=50,
+    Rounding=0
+}):OnChanged(function(v)
+    SilentAimSettings.TargetIndicatorRadius=v
+end)
+zjTracer:AddToggle("SA_ShowTracer",{
+    Text="\230\152\190\231\164\186\231\158\132\229\135\134\229\176\132\231\186\191",
+    Default=false
+}):OnChanged(function(v)
+    SilentAimSettings.ShowTracer=v
+end)
+zjTracer:AddToggle("SA_TracerBottom",{
+    Text="\228\187\142\229\177\143\229\185\149\229\186\149\233\131\168\229\143\145\229\176\132",
+    Default=true
+}):OnChanged(function(v)
+    SilentAimSettings.TracerFromBottom=v
+end)
+zjTracer:AddSlider("SA_TracerThick",{
+    Text="\229\176\132\231\186\191\231\178\151\231\187\134",
+    Default=1,
+    Min=1,
+    Max=10,
+    Rounding=0
+}):OnChanged(function(v)
+    SilentAimSettings.TracerThickness=v
+    sa_tracer.Thickness=v
+end)
+zjTracer:AddSlider("SA_TracerAlpha",{
+    Text="\229\176\132\231\186\191\233\128\143\230\152\142\229\186\166",
+    Default=0.3,
+    Min=0,
+    Max=1,
+    Rounding=2
+}):OnChanged(function(v)
+    SilentAimSettings.TracerTransparency=v
+    sa_tracer.Transparency=v
+end)
+RunService.RenderStepped:Connect(function()
+    sa_currentTargetPart=nil
+    local target=nil
+    if SilentAimSettings.Enabled then
+        target=SA_getClosestPlayer()
+    end
+    sa_lastTargetCharacter=target
+    if target then
+        local h=target:FindFirstChildOfClass"Humanoid"
+        if h and h.Health>0 then
+            sa_currentTargetPart=target:FindFirstChild(SilentAimSettings.TargetPart)or target:FindFirstChild"HumanoidRootPart"
+        end
+    end
+    if sa_target_circle then
+        sa_target_circle.Visible=false
+        if sa_currentTargetPart and SilentAimSettings.ShowSilentAimTarget then
+            local sp,on=SA_getScreenPos(sa_currentTargetPart.Position)
+            if on then
+                sa_target_circle.Visible=true
+                sa_target_circle.Position=sp
+                sa_target_circle.Radius=SilentAimSettings.TargetIndicatorRadius
+            end
+        end
+    end
+    sa_tracer.Visible=false
+    if sa_currentTargetPart and SilentAimSettings.ShowTracer and SilentAimSettings.Enabled then
+        local sp,on=SA_getScreenPos(sa_currentTargetPart.Position)
+        if on then
+            local fromPos
+            if SilentAimSettings.TracerFromBottom then
+                fromPos=Vector2 .new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y)
+            else
+                fromPos=Vector2 .new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+            end
+            sa_tracer.From=fromPos
+            sa_tracer.To=sp
+            sa_tracer.Thickness=SilentAimSettings.TracerThickness
+            sa_tracer.Transparency=SilentAimSettings.TracerTransparency
+            sa_tracer.Visible=true
+        end
+    end
+    if sa_FOVGui.Enabled then
+        if SilentAimSettings.FixedFOV then
+            sa_FOVFrame.Position=UDim2 .fromScale(0.5,0.5)
+        else
+            local m=UserInputService:GetMouseLocation()
+            sa_FOVFrame.Position=UDim2 .fromOffset(m.X,m.Y)
+        end
+    end
+end)
+local sa_oldNamecall
+sa_oldNamecall=hookmetamethod(game,"__namecall",newcclosure(function(...)
+    local Method=getnamecallmethod()
+    local Args={
+        ...
+    }
+    local self=Args[1]
+    if SilentAimSettings.Enabled and not checkcaller()and sa_currentTargetPart then
+        if math.random()<=SilentAimSettings.HitChance/100 then
+            if Method=="Raycast"then
+                if#Args>=3 and typeof(Args[2])=="Vector3"and typeof(Args[3])=="Vector3"then
+                    local origin=Args[2]
+                    local direction=Args[3]
+                    if direction.Magnitude<100 then
+                        return sa_oldNamecall(...)
+                    end
+                    Args[3]=(sa_currentTargetPart.Position-origin).Unit*1000
+                    return sa_oldNamecall(unpack(Args))
+                end
+            end
+        end
+    end
+    return sa_oldNamecall(...)
+end))
+print"[\233\157\153\233\187\152\231\158\132\229\135\134] \229\183\178\229\138\160\232\189\189\229\136\176 Tabs.zj\239\188\136Obsidian \230\160\188\229\188\143\239\188\137"
 ESP_Config={
     EnableESP=false,
     ShowBox=true,
@@ -3413,78 +3751,6 @@ SaveManager:BuildConfigSection(Tabs.UI)
 ThemeManager:ApplyToTab(Tabs.UI)
 SaveManager:LoadAutoloadConfig()
 Library:Init()
-task.spawn(function()
-    local translations={
-        ["Toggle"]="\229\136\135\230\141\162",
-        ["Lock"]="\233\148\129\229\174\154",
-        ["Search"]="\230\144\156\231\180\162",
-        ["Save"]="\228\191\157\229\173\152",
-        ["Load"]="\229\138\160\232\189\189",
-        ["Delete"]="\229\136\160\233\153\164",
-        ["Refresh"]="\229\136\183\230\150\176",
-        ["Copy"]="\229\164\141\229\136\182",
-        ["Clear"]="\230\184\133\231\169\186",
-        ["Reset"]="\233\135\141\231\189\174",
-        ["Unload"]="\229\141\184\232\189\189",
-        ["Enabled"]="\229\183\178\229\144\175\231\148\168",
-        ["Disabled"]="\229\183\178\231\166\129\231\148\168",
-        ["Theme"]="\228\184\187\233\162\152",
-        ["Theme Manager"]="\228\184\187\233\162\152\231\174\161\231\144\134",
-        ["Delete theme"]="\229\136\160\233\153\164\228\184\187\233\162\152",
-        ["Refresh list"]="\229\136\183\230\150\176\229\136\151\232\161\168",
-        ["Set as default"]="\232\174\190\228\184\186\233\187\152\232\174\164",
-        ["Reset default"]="\233\135\141\231\189\174\233\187\152\232\174\164",
-        ["Current default theme: none"]="\229\189\147\229\137\141\233\187\152\232\174\164\228\184\187\233\162\152: \230\151\160",
-        ["Current default theme: "]="\229\189\147\229\137\141\233\187\152\232\174\164\228\184\187\233\162\152: ",
-        ["Theme JSON"]="\228\184\187\233\162\152 JSON",
-        ["Import theme"]="\229\175\188\229\133\165\228\184\187\233\162\152",
-        ["Export current theme"]="\229\175\188\229\135\186\229\189\147\229\137\141\228\184\187\233\162\152",
-        ["Accent Color"]="\229\188\186\232\176\131\232\137\178",
-        ["Text Color"]="\230\150\135\229\173\151\233\162\156\232\137\178",
-        ["Element Color"]="\229\133\131\231\180\160\233\162\156\232\137\178",
-        ["Background"]="\232\131\140\230\153\175",
-        ["Font"]="\229\173\151\228\189\147",
-        ["Custom"]="\232\135\170\229\174\154\228\185\137",
-        ["Config list"]="\233\133\141\231\189\174\229\136\151\232\161\168",
-        ["Load config"]="\229\138\160\232\189\189\233\133\141\231\189\174",
-        ["Overwrite config"]="\232\166\134\231\155\150\233\133\141\231\189\174",
-        ["Delete config"]="\229\136\160\233\153\164\233\133\141\231\189\174",
-        ["Set as autoload"]="\232\174\190\228\184\186\232\135\170\229\138\168\229\138\160\232\189\189",
-        ["Reset autoload"]="\233\135\141\231\189\174\232\135\170\229\138\168\229\138\160\232\189\189",
-        ["Current autoload config: none"]="\229\189\147\229\137\141\232\135\170\229\138\168\229\138\160\232\189\189\233\133\141\231\189\174: \230\151\160",
-        ["Current autoload config: "]="\229\189\147\229\137\141\232\135\170\229\138\168\229\138\160\232\189\189\233\133\141\231\189\174: ",
-        ["Enter Config Name"]="\232\190\147\229\133\165\233\133\141\231\189\174\229\144\141\231\167\176",
-        ["Config Name"]="\233\133\141\231\189\174\229\144\141\231\167\176",
-        ["Autoload"]="\232\135\170\229\138\168\229\138\160\232\189\189"
-    }
-    while task.wait(0.1)do
-        pcall(function()
-            local containers={
-                game.Players.LocalPlayer:FindFirstChild"PlayerGui",
-                game:GetService"CoreGui"
-            }
-            for _,container in ipairs(containers)do
-                if container then
-                    for _,obj in ipairs(container:GetDescendants())do
-                        if obj:IsA"TextLabel"or obj:IsA"TextButton"or obj:IsA"TextBox"then
-                            local txt=obj.Text
-                            if translations[txt]then
-                                obj.Text=translations[txt]
-                            else
-                                for eng,chn in pairs(translations)do
-                                    if type(txt)=="string"and string.find(txt,eng,1,true)then
-                                        obj.Text=string.gsub(txt,eng,chn)
-                                        break
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end
-end)
 Library:Notify{
     Title="\229\138\160\232\189\189\229\174\140\230\136\144",
     Text="\233\128\154\231\188\137\232\132\154\230\156\172Obsidian UI ",
