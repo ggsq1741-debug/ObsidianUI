@@ -3776,7 +3776,7 @@ qqGroup:AddButton({
 })
 
 -- ==================== 娱乐功能 ====================
-local rsaoGroup = Tabs.rsao:AddLeftGroupbox("娱乐功能")
+local rsaoGroup = Tabs.rsao:AddLeftGroupbox("娱乐功能+环境+创造魔法")
 
 local burningActive = false
 rsaoGroup:AddToggle("Burning", {
@@ -3842,6 +3842,29 @@ rsaoGroup:AddButton({
             skybox.MoonBrightness = 1.0
             skybox.SunBrightness = 0
         end
+    end,
+})
+
+-- ==================== 娱乐功能：外部脚本面板（右栏） ====================
+local rsaoExternal = Tabs.rsao:AddRightGroupbox("环境、其他")
+
+rsaoExternal:AddButton({
+    Text = "创造与魔法",
+    Tooltip = "加载创造与魔法",
+    Func = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/Saint-Orry/refs/heads/main/3.lua"))()
+        end)
+    end,
+})
+
+rsaoExternal:AddButton({
+    Text = "天气",
+    Tooltip = "通缉天气",
+    Func = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/Saint-Orry/refs/heads/main/%E9%80%9A%E7%BC%89%E5%A4%A9%E6%B0%94.lua"))()
+        end)
     end,
 })
 
