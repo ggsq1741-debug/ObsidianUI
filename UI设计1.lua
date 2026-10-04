@@ -4272,7 +4272,7 @@ rsaoGroup:AddToggle("Burning", {
         burningActive = state
         if burningActive then
             task.spawn(function()
-                local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[75]
+                local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[86]
                 while burningActive do
                     Event:FireServer("burning", true)
                     task.wait(0.2)
