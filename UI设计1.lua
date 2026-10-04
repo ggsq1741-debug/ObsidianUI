@@ -200,8 +200,8 @@ ggLeft:AddLabel("有问题、bug请联系作者")
 ggLeft:AddLabel("售后1125514261")
 ggLeft:AddDivider()
 ggLeft:AddLabel("更新内容：")
-ggLeft:AddLabel("• 新增飞车光环等")
-ggLeft:AddLabel("• 新增愤怒机器人辅助瞄准")
+ggLeft:AddLabel("• 新版本问题")
+ggLeft:AddLabel("• 部分功能失已删除")
 ggLeft:AddLabel("• 新增刷钱自动化农场100%")
 ggLeft:AddDivider()
 
@@ -2124,24 +2124,23 @@ if not aaOk then
 end
 -- ==================== 光环设置页 ====================
 local Network = game:GetService("ReplicatedStorage").Shared.Core.Network
-local Event87   = Network:GetChildren()[87]
-local Event200  = Network:GetChildren()[200]
-local Event156  = Network:GetChildren()[156]
-local Event39   = Network:GetChildren()[39]        
+local Event98   = Network:GetChildren()[98]    -- 救援光环
+local Event211  = Network:GetChildren()[211]   -- ★ 踩踏光环 200 → 211
+local Event41   = Network:GetChildren()[41]    -- ★ 抓取光环 39 → 41
 
 -- 配置
 local AuraConfig = {
-    E87_Enabled = false,
-    E87_Interval = 0.1,
+    E98_Enabled = false,
+    E98_Interval = 0.1,
 
-    E200_Enabled = false,
-    E200_Interval = 0.1,
+    E211_Enabled = false,        -- ★ 200 → 211
+    E211_Interval = 0.1,
 
     Arrest_Enabled = false,
     Arrest_Interval = 0.5,
 
-    E39_Enabled = false,        
-    E39_Interval = 0.1,
+    E41_Enabled = false,         -- ★ 39 → 41
+    E41_Interval = 0.1,
 }
 
 -- 找最近敌人（无距离限制，跳过队友）
@@ -2173,127 +2172,98 @@ local function findNearestEnemy()
     return nearest
 end
 
--- [87] 循环
+-- [98] 救援光环循环
 task.spawn(function()
     while true do
-        if AuraConfig.E87_Enabled then
+        if AuraConfig.E98_Enabled then
             local enemy = findNearestEnemy()
             if enemy then
                 pcall(function()
-                    Event87:FireServer(enemy.UserId)
+                    Event98:FireServer(enemy.UserId)
                 end)
             end
         end
-        task.wait(AuraConfig.E87_Interval)
+        task.wait(AuraConfig.E98_Interval)
     end
 end)
 
--- [200] 循环
+-- [211] 踩踏光环循环
 task.spawn(function()
     while true do
-        if AuraConfig.E200_Enabled then
+        if AuraConfig.E211_Enabled then
             local enemy = findNearestEnemy()
             if enemy then
                 pcall(function()
-                    Event200:FireServer(enemy.UserId)
+                    Event211:FireServer(enemy.UserId)
                 end)
             end
         end
-        task.wait(AuraConfig.E200_Interval)
+        task.wait(AuraConfig.E211_Interval)
     end
 end)
 
--- [156] 逮捕光环
-local lastArrest = 0
+-- [41] 抓取光环
+local lastAura41 = 0
 RunService.Heartbeat:Connect(function()
-    if not AuraConfig.Arrest_Enabled then return end
+    if not AuraConfig.E41_Enabled then return end
     local now = tick()
-    if now - lastArrest < AuraConfig.Arrest_Interval then return end
+    if now - lastAura41 < AuraConfig.E41_Interval then return end
 
     local enemy = findNearestEnemy()
     if enemy then
         pcall(function()
-            Event156:FireServer(enemy.UserId)
+            Event41:FireServer(enemy.UserId)
         end)
-        lastArrest = now
+        lastAura41 = now
     end
 end)
 
--- [39] 光环
-local lastAura39 = 0
-RunService.Heartbeat:Connect(function()
-    if not AuraConfig.E39_Enabled then return end
-    local now = tick()
-    if now - lastAura39 < AuraConfig.E39_Interval then return end
-
-    local enemy = findNearestEnemy()
-    if enemy then
-        pcall(function()
-            Event39:FireServer(enemy.UserId)
-        end)
-        lastAura39 = now
-    end
-end)
 -- ==================== 光环设置 UI（Obsidian 风格） ====================
 local ghLeft  = Tabs.gh:AddLeftGroupbox("救援事件")
 local ghMid   = Tabs.gh:AddLeftGroupbox("踩踏事件")
-local ghRight = Tabs.gh:AddRightGroupbox("逮捕光环")
 
--- [87]
-ghLeft:AddToggle("Aura87_Toggle", {
+-- [98] 救援光环
+ghLeft:AddToggle("Aura98_Toggle", {
     Text = "启用救援",
     Default = false,
-    Callback = function(v) AuraConfig.E87_Enabled = v end,
+    Callback = function(v) AuraConfig.E98_Enabled = v end,
 })
 
-ghLeft:AddSlider("Aura87_Interval", {
+ghLeft:AddSlider("Aura98_Interval", {
     Text = "救援间隔",
     Default = 0.1, Min = 0.05, Max = 2, Rounding = 2,
     Suffix = "s",
-    Callback = function(v) AuraConfig.E87_Interval = v end,
+    Callback = function(v) AuraConfig.E98_Interval = v end,
 })
 
--- [200]
-ghMid:AddToggle("Aura200_Toggle", {
+-- [211] 踩踏光环
+ghMid:AddToggle("Aura211_Toggle", {          -- ★ 200 → 211
     Text = "启用踩踏",
     Default = false,
-    Callback = function(v) AuraConfig.E200_Enabled = v end,
+    Callback = function(v) AuraConfig.E211_Enabled = v end,
 })
 
-ghMid:AddSlider("Aura200_Interval", {
+ghMid:AddSlider("Aura211_Interval", {        -- ★ 200 → 211
     Text = "踩踏间隔",
     Default = 0.1, Min = 0.05, Max = 2, Rounding = 2,
     Suffix = "s",
-    Callback = function(v) AuraConfig.E200_Interval = v end,
+    Callback = function(v) AuraConfig.E211_Interval = v end,
 })
 
--- 逮捕光环
-ghRight:AddToggle("Arrest_Toggle", {
-    Text = "启用逮捕光环",
-    Default = false,
-    Callback = function(v) AuraConfig.Arrest_Enabled = v end,
-})
-
-ghRight:AddSlider("Arrest_Interval", {
-    Text = "逮捕间隔",
-    Default = 0.5, Min = 0.1, Max = 3, Rounding = 1,
-    Suffix = "s",
-    Callback = function(v) AuraConfig.Arrest_Interval = v end,
-})
--- [39] 光环控件
+-- [41] 抓取光环控件
 local ghRight2 = Tabs.gh:AddRightGroupbox("抓取光环")
 
-ghRight2:AddToggle("Aura39_Toggle", {
+ghRight2:AddToggle("Aura41_Toggle", {        -- ★ 39 → 41
     Text = "启用抓取光环",
     Default = false,
-    Callback = function(v) AuraConfig.E39_Enabled = v end,
+    Callback = function(v) AuraConfig.E41_Enabled = v end,
 })
 
-ghRight2:AddSlider("Aura39_Interval", {
+ghRight2:AddSlider("Aura41_Interval", {      -- ★ 39 → 41
     Text = "抓取光环间隔",
     Default = 0.1, Min = 0.05, Max = 2, Rounding = 2,
     Suffix = "s",
-    Callback = function(v) AuraConfig.E39_Interval = v end,
+    Callback = function(v) AuraConfig.E41_Interval = v end,
 })
 -- ==================== 瞄准页 ====================
 local AimConfig = {
@@ -3979,15 +3949,19 @@ local function SetupFarmFull()
         BagFullThreshold = 0.8,
     }
 
-    local FARM_SPOTS = {
-        CFrame.new(-387,     612,  -1194),
-        CFrame.new(-3139,    36,   1638),
-        CFrame.new(212,      39.7, -2917.9),
-        CFrame.new(-1677.8,  181,  3336.4),
-        CFrame.new(-490.5,   128,  -1677.2),
-        CFrame.new(-940.7,   73.9, -1541.6),
-        CFrame.new(-484.2,   44.1, -1956.6),
-    }
+local FARM_SPOTS = {
+    CFrame.new(-386.13,   617.44, -1193.07),
+    CFrame.new(-3139,     36,      1638),
+    CFrame.new(212,       39.7,   -2917.9),
+    CFrame.new(-1677.8,   181,     3336.4),
+    CFrame.new(-490.5,    128,    -1677.2),
+    CFrame.new(-940.7,    73.9,   -1541.6),
+    CFrame.new(-484.2,    44.1,   -1956.6),
+    CFrame.new(1873.72,   171.63,  -537.64),
+    CFrame.new(-1394.89,  272.13,   3204.58),
+    CFrame.new(-1389.94,  272.13,   3188.34),
+    CFrame.new(-3185.39,  36.72,    1715.80),
+}
 
     local function matchesOption(g, options)
         for _, opt in ipairs(options) do
@@ -3997,98 +3971,100 @@ local function SetupFarmFull()
         return false
     end
 
-    -- ========================================
-    -- tweenTo（加速：0.05 → 0.03）
-    -- ========================================
-    local function tweenTo(hrp, duration, targetCF)
-        if not hrp or not hrp.Parent then return end
-        if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then return end
-        local tw = TweenService:Create(
-            hrp,
-            TweenInfo.new(duration, Enum.EasingStyle.Linear),
-            { CFrame = targetCF }
-        )
-        tw:Play()
-        while tw.PlaybackState == Enum.PlaybackState.Playing do
-            if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then
-                tw:Cancel()
-                return
-            end
-            task.wait(0.03)   -- 加速：原 0.05
-        end
-    end
 
+local function tweenTo(hrp, duration, targetCF)
+    if not hrp or not hrp.Parent then return end
+    if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then return end
+
+    local tw = TweenService:Create(
+        hrp,
+        TweenInfo.new(duration, Enum.EasingStyle.Linear),
+        { CFrame = targetCF }
+    )
+    tw:Play()
+
+    while tw.PlaybackState == Enum.PlaybackState.Playing do
+        if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then
+            tw:Cancel()
+            return
+        end
+        task.wait(0.05)
+    end
+end
     -- ========================================
     -- 农场光环 主循环（加速：0.03 → 0.02）
     -- ========================================
-    local function tickFarmAura()
-        local hrp = getHRP()
-        if not hrp then return end
-        local hasBuzz = findBuzzsaw() ~= nil
-        for _, opt in ipairs(FarmConfig.Options) do
-            if opt == "Break Glass" and hasBuzz then
-                breakGlass(hrp)
-                break
-            end
+local function tickFarmAura()
+    local hrp = getHRP()
+    if not hrp then return end
+
+    local hasBuzz = findBuzzsaw() ~= nil
+    for _, opt in ipairs(FarmConfig.Options) do
+        if opt == "Break Glass" and hasBuzz then
+            breakGlass(hrp)
+            break
         end
-        if #FarmConfig.Options == 0 then return end
-        local gizmos = getGizmos(hrp)
-        local cashList, otherList = {}, {}
-        for _, g in ipairs(gizmos) do
-            if g.dist < FarmConfig.Range and canInteract(g) and matchesOption(g, FarmConfig.Options) then
-                if isCash(g) then
-                    table.insert(cashList, g)
-                else
-                    table.insert(otherList, g)
-                end
-            end
-        end
-        for i = 1, #cashList do interact(cashList[i]) end
-        table.sort(otherList, function(a, b) return a.dist < b.dist end)
-        for i = 1, math.min(3, #otherList) do interact(otherList[i]) end
     end
 
-    task.spawn(function()
-        while true do
-            if FarmConfig.Enabled then
-                pcall(tickFarmAura)
+    local gizmos = getGizmos(hrp)
+    local cashList, otherList = {}, {}
+    for _, g in ipairs(gizmos) do
+        if g.dist < FarmConfig.Range and canInteract(g) and matchesOption(g, FarmConfig.Options) then
+            if isCash(g) then
+                table.insert(cashList, g)
+            else
+                table.insert(otherList, g)
             end
-            task.wait(0.02)   -- 加速：原 0.03
         end
-    end)
+    end
+    for i = 1, #cashList do interact(cashList[i]) end
+    table.sort(otherList, function(a, b) return a.dist < b.dist end)
+    for i = 1, math.min(3, #otherList) do interact(otherList[i]) end
+end
 
+task.spawn(function()
+    while true do
+        if FarmConfig.Enabled then
+            pcall(tickFarmAura)
+        end
+        task.wait(0.03)
+    end
+end)
     -- ========================================
     -- 背包 / 出售
     -- ========================================
-    local function getBagFullPercent()
-        local ok2, data = pcall(function()
-            return require(ReplicatedStorage.Devv).load("ClientData").Get()
-        end)
-        if not ok2 or type(data) ~= "table" or type(data.bag) ~= "table" then return 0 end
-        local totalWeight = 0
-        if type(data.bag.contents) == "table" then
-            local Objects = require(ReplicatedStorage.Shared.Wanted.Indicies.Objects)
-            for _, itemName in pairs(data.bag.contents) do
-                if type(itemName) == "string" then
-                    local w = Objects.GetDataProperty(itemName, "weight")
-                    if type(w) == "number" then totalWeight += w end
-                end
+ local function getBagFullPercent()
+    local ok2, data = pcall(function()
+        return require(ReplicatedStorage.Devv).load("ClientData").Get()
+    end)
+    if not ok2 or type(data) ~= "table" or type(data.bag) ~= "table" then return 0 end
+
+    local totalWeight = 0
+    if type(data.bag.contents) == "table" then
+        local Objects = require(ReplicatedStorage.Shared.Wanted.Indicies.Objects)
+        for _, itemName in pairs(data.bag.contents) do
+            if type(itemName) == "string" then
+                local w = Objects.GetDataProperty(itemName, "weight")
+                if type(w) == "number" then totalWeight += w end
             end
         end
-        local UpgradeUtil = require(ReplicatedStorage.Shared.Wanted.Modules.UpgradeUtil)
-        local cap = UpgradeUtil.GetBagCapacity()
-        if type(cap) ~= "number" or cap <= 0 then
-            cap = type(data.bag.capacity) == "number" and data.bag.capacity or 1
-        end
-        return totalWeight / cap
     end
 
-    local function isBagFull(threshold)
-        threshold = threshold or 0.8
-        if LocalPlayer:GetAttribute("isBagFull") then return true end
-        if not LocalPlayer:GetAttribute("hasLootBag") then return false end
-        return getBagFullPercent() >= threshold
+    local UpgradeUtil = require(ReplicatedStorage.Shared.Wanted.Modules.UpgradeUtil)
+    local cap = UpgradeUtil.GetBagCapacity()
+    if type(cap) ~= "number" or cap <= 0 then
+        cap = type(data.bag.capacity) == "number" and data.bag.capacity or 1
     end
+    return totalWeight / cap
+end
+
+local function isBagFull(threshold)
+    threshold = threshold or 0.8
+    if LocalPlayer:GetAttribute("isBagFull") then return true end
+    if not LocalPlayer:GetAttribute("hasLootBag") then return false end
+    return getBagFullPercent() >= threshold
+end
+
 
     -- ========================================
     -- sellLoot（加速：/100 → /150）
@@ -4111,73 +4087,68 @@ local function SetupFarmFull()
         return true
     end
 
-    -- ========================================
-    -- 自动农场 主循环（加速版）
-    -- 跑图 /100 → /130
-    -- 靠拢 /60 → /120
-    -- 破玻璃 0.35 → 0.2
-    -- ATM 2.5/0.6 → 1.2/0.3
-    -- 主循环 0.1 → 0.06
-    -- ========================================
-    local autoFarmRunning = false
-    local function startAutoFarm()
-        if autoFarmRunning then return end
-        autoFarmRunning = true
-        task.spawn(function()
-            while AutoFarmConfig.Enabled do
-                pcall(function()
-                    local hrp = getHRP()
-                    if not hrp or not getHum() then return end
-                    if isBagFull(AutoFarmConfig.BagFullThreshold) then
-                        sellLoot()
-                        return
+local autoFarmRunning = false
+local function startAutoFarm()
+    if autoFarmRunning then return end
+    autoFarmRunning = true
+    task.spawn(function()
+        while AutoFarmConfig.Enabled do
+            pcall(function()
+                local hrp = getHRP()
+                if not hrp or not getHum() then return end
+
+                if isBagFull(AutoFarmConfig.BagFullThreshold) then
+                    sellLoot()
+                    return
+                end
+
+                -- 随机挑一个刷钱点
+                local spot = FARM_SPOTS[math.random(1, #FARM_SPOTS)]
+
+                -- 【关键修复】直接从当前位置 tween 到目标点（含目标 Y 高度）
+                -- 不再使用 hrp.CFrame + Vector3.new(0, 150, 0) 这种叠加写法
+                local dist = (hrp.Position - spot.Position).Magnitude
+                tweenTo(hrp, math.max(dist / 100, 0.3), spot)
+                if not AutoFarmConfig.Enabled then return end
+
+                local hasBuzz = findBuzzsaw() ~= nil
+                local gizmos = getGizmos(getHRP())
+                local targets = {}
+                for _, g in ipairs(gizmos) do
+                    if canInteract(g) and matchesOption(g, AutoFarmConfig.Options) then
+                        table.insert(targets, g)
                     end
-                    local spot = FARM_SPOTS[math.random(1, #FARM_SPOTS)]
-                    tweenTo(hrp, 1, hrp.CFrame + Vector3.new(0, 150, 0))
+                end
+                table.sort(targets, function(a, b) return a.dist < b.dist end)
+
+                for _, g in ipairs(targets) do
                     if not AutoFarmConfig.Enabled then return end
+                    if isBagFull(AutoFarmConfig.BagFullThreshold) then sellLoot(); return end
+
                     hrp = getHRP()
                     if not hrp then return end
-                    local horizontal = Vector3.new(spot.X, hrp.Position.Y, spot.Z)
-                    tweenTo(hrp, (hrp.Position - horizontal).Magnitude / 130, CFrame.new(horizontal))   -- 加速：原 /100
+                    local targetCF = g.cframe and (g.cframe * CFrame.new(0, 1, -1)) or CFrame.new(g.position)
+                    tweenTo(hrp, math.max((hrp.Position - targetCF.Position).Magnitude / 60, 0.05), targetCF)
 
-                    local hasBuzz = findBuzzsaw() ~= nil
-                    local gizmos = getGizmos(getHRP())
-                    local targets = {}
-                    for _, g in ipairs(gizmos) do
-                        if canInteract(g) and matchesOption(g, AutoFarmConfig.Options) then
-                            table.insert(targets, g)
-                        end
+                    if g.isJewelry and hasBuzz then
+                        breakGlass(hrp)
+                        task.wait(0.35)
                     end
-                    table.sort(targets, function(a, b) return a.dist < b.dist end)
+                    interact(g)
 
-                    for _, g in ipairs(targets) do
-                        if not AutoFarmConfig.Enabled then return end
-                        if isBagFull(AutoFarmConfig.BagFullThreshold) then sellLoot(); return end
-                        hrp = getHRP()
-                        if not hrp then return end
-                        local targetCF = g.cframe and (g.cframe * CFrame.new(0, 1, -1)) or CFrame.new(g.position)
-                        tweenTo(hrp, math.max((hrp.Position - targetCF.Position).Magnitude / 120, 0.05), targetCF)   -- 加速：原 /60
+                    local waitTime = (g.gizmoType == "ATM" or g.gizmoType == "Register") and 2.5 or 0.6
+                    task.wait(waitTime)
+                end
+            end)
+            task.wait(0.1)
+        end
+        autoFarmRunning = false
+    end)
+end
 
-                        if g.isJewelry and hasBuzz then
-                            breakGlass(hrp)
-                            task.wait(0.2)   -- 加速：原 0.35
-                        end
-                        interact(g)
-
-                        local waitTime = (g.gizmoType == "ATM" or g.gizmoType == "Register") and 1.2 or 0.3   -- 加速：原 2.5/0.6
-                        task.wait(waitTime)
-                    end
-                end)
-                task.wait(0.06)   -- 加速：原 0.1
-            end
-            autoFarmRunning = false
-        end)
-    end
-
-    local function stopAutoFarm()
-        AutoFarmConfig.Enabled = false
-    end
-
+local function stopAutoFarm()
+    AutoFarmConfig.Enabled = false
+end
     -- ========================================
     -- UI：Obsidian 格式
     -- ========================================
@@ -4389,33 +4360,10 @@ local gmGroup = Tabs.gm:AddLeftGroupbox("购买（需在建筑范围内）")
 gmGroup:AddButton({
     Text = "奥菲当铺出售物品循环售卖",
     Func = function()
-        local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[144]
+        local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[155]
         task.spawn(function()
             while task.wait(0.2) do
                 pcall(function() Event:InvokeServer("Ofy") end)
-            end
-        end)
-    end,
-})
-
-gmGroup:AddButton({
-    Text = "C4➖250元",
-    Func = function()
-        local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[190]
-        Event:InvokeServer({
-            itemName = "C4", itemType = "Ammo", ammoToBuyIndex = 1,
-            categoryName = "Explosives", shopName = "Guns"
-        })
-    end,
-})
-
-gmGroup:AddButton({
-    Text = "循环补充弹药",
-    Func = function()
-        local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[190]
-        task.spawn(function()
-            while task.wait(0.2) do
-                pcall(function() Event:InvokeServer({ refillAll = true }) end)
             end
         end)
     end,
