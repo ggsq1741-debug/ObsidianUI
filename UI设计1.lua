@@ -1,4 +1,21 @@
--- 顶部：防检测 Hook 系统
+-- ==================== 全局屏蔽日志（兼容版） ====================
+do
+    local ok1 = pcall(function() print = function() end end)
+    local ok2 = pcall(function() warn = function() end end)
+    local ok3 = pcall(function() printidentity = function() end end)
+
+    -- 如果直接赋值失败，尝试用 hookfunction
+    if not ok1 and hookfunction then
+        pcall(function() hookfunction(print, function() end) end)
+    end
+    if not ok2 and hookfunction then
+        pcall(function() hookfunction(warn, function() end) end)
+    end
+    if not ok3 and hookfunction then
+        pcall(function() hookfunction(printidentity, function() end) end)
+    end
+end
+-- ================================================================
 local hookVelocity = false -- 默认关闭
 local mt = getrawmetatable(game)
 local old = mt.__index
@@ -200,8 +217,8 @@ ggLeft:AddLabel("有问题、bug请联系作者")
 ggLeft:AddLabel("售后1125514261")
 ggLeft:AddDivider()
 ggLeft:AddLabel("更新内容：")
-ggLeft:AddLabel("• 新版本问题")
-ggLeft:AddLabel("• 部分功能失已删除")
+ggLeft:AddLabel("• 新版本")
+ggLeft:AddLabel("• 由于前面光环等功能失效现已修复")
 ggLeft:AddLabel("• 新增刷钱自动化农场100%")
 ggLeft:AddDivider()
 
@@ -217,7 +234,7 @@ ggRight:AddLabel("3. ESP 如果没显示")
 ggRight:AddLabel("   先把总开关打开")
 ggRight:AddDivider()
 ggRight:AddLabel("4. 子弹追踪问题")
-ggRight:AddLabel("  原版子弹追踪第三人称会视角晃动强制修复可能会有一定概率无法击中")
+ggRight:AddLabel("尽量拿自动步枪")
 
 ggRight:AddDivider()
 ggRight:AddButton({
@@ -4308,24 +4325,57 @@ qqGroup:AddButton({
 -- ==================== 娱乐功能 ====================
 local rsaoGroup = Tabs.rsao:AddLeftGroupbox("娱乐功能+环境+创造魔法")
 
-local burningActive = false
+-- ==================== 烈焰战士（真实函数名 replicatePlayerProperty） ====================
+local burningActive   = false
+local burningInterval = 0.2
+
 rsaoGroup:AddToggle("Burning", {
-    Text = "🔥 烈焰战士",
+    Text = " 烈焰战士",
     Default = false,
+    Tooltip = "开启后循环维持自身的燃烧状态",
     Callback = function(state)
         burningActive = state
-        if burningActive then
-            task.spawn(function()
-                local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[86]
-                while burningActive do
-                    Event:FireServer("burning", true)
-                    task.wait(0.2)
-                end
-            end)
-        end
+
+        if not state then return end
+
+        task.spawn(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+            local DevvFolder = ReplicatedStorage:FindFirstChild("Devv")
+                or ReplicatedStorage:FindFirstChild("devv")
+            if not DevvFolder then
+                burningActive = false
+                return
+            end
+
+            local DevvModule = require(DevvFolder)
+            local Network    = DevvModule.load("Network")
+            local FireServer = Network.FireServer
+
+            local BURNING_ACTION = "replicatePlayerProperty"
+
+            while burningActive do
+                pcall(function()
+                    FireServer(BURNING_ACTION, "burning", true)
+                end)
+                task.wait(burningInterval)
+            end
+        end)
     end,
 })
 
+rsaoGroup:AddSlider("Burning_Interval", {
+    Text = "燃烧间隔",
+    Desc = "每次发送燃烧请求后的等待时间",
+    Default = 0.2,
+    Min = 0.05,
+    Max = 2,
+    Rounding = 2,
+    Suffix = " 秒",
+    Callback = function(v)
+        burningInterval = tonumber(v) or 0.2
+    end,
+})
 rsaoGroup:AddButton({
     Text = "刷印钞机",
     Func = function()
