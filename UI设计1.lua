@@ -2123,148 +2123,192 @@ if not aaOk then
     --Library:Notify({ Title = "辅助瞄准", Text = "加载失败: " .. tostring(aaErr), Duration = 8 })
 end
 -- ==================== 光环设置页 ====================
-local Network = game:GetService("ReplicatedStorage").Shared.Core.Network
-local Event98   = Network:GetChildren()[98]    -- 救援光环
-local Event211  = Network:GetChildren()[211]   -- ★ 踩踏光环 200 → 211
-local Event41   = Network:GetChildren()[41]    -- ★ 抓取光环 39 → 41
+-- ==================== 光环设置页（使用真实函数名，换服不换数字） ====================
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer       = Players.LocalPlayer
 
--- 配置
+local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
+if not DevvFolder then
+    return warn("❌ [光环] 请在《通缉》游戏内执行此脚本！")
+end
+
+local DevvModule = require(DevvFolder)
+local Network    = DevvModule.load("Network")
+local FireServer = Network.FireServer
+
+-- ⭐ 抓包验证过的真实动作名
+local STOMP_ACTION  = "finish"   -- 踩踏
+local ARREST_ACTION = "arrest"   -- 逮捕
+local GRAB_ACTION   = "grab"     -- 抓取
+local REVIVE_ACTION = "revive"   -- 救援
+
+-- ==================== 配置 ====================
 local AuraConfig = {
-    E98_Enabled = false,
-    E98_Interval = 0.1,
-
-    E211_Enabled = false,        -- ★ 200 → 211
-    E211_Interval = 0.1,
-
-    Arrest_Enabled = false,
-    Arrest_Interval = 0.5,
-
-    E41_Enabled = false,         -- ★ 39 → 41
-    E41_Interval = 0.1,
+    Stomp  = { Enabled = false, Interval = 0.5, Range = 50 },  
+    Arrest = { Enabled = false, Interval = 0.5, Range = 50 },  
+    Grab   = { Enabled = false, Interval = 0.5, Range = 50 },  
+    Revive = { Enabled = false, Interval = 0.5, Range = 50 },  
 }
 
--- 找最近敌人（无距离限制，跳过队友）
-local function findNearestEnemy()
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
+-- ==================== 核心：找最近的可操作目标 ====================
+-- skipTeam = true 时跳过队友；false 时对所有人生效
+local function getClosestTarget(range, skipTeam)
+    local myChar = LocalPlayer.Character
+    if not myChar then return nil end
+    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return nil end
 
-    local nearest, nearestDist = nil, math.huge
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            local tHrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hum and hum.Health > 0 and tHrp then
-                local skip = false
-                if p.Team and LocalPlayer.Team and p.Team == LocalPlayer.Team then
-                    skip = true
-                end
-                if not skip then
-                    local dist = (tHrp.Position - hrp.Position).Magnitude
-                    if dist < nearestDist then
-                        nearest = p
-                        nearestDist = dist
+    local closest, minDist = nil, math.huge
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local isTeammate = plr.Team and LocalPlayer.Team and plr.Team == LocalPlayer.Team
+            if not (skipTeam and isTeammate) then
+                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
+                    local isDowned = plr:GetAttribute("isDowned")
+                        or plr:GetAttribute("knocked")
+                        or plr:GetAttribute("crawling")
+                    local dist = (hrp.Position - myHRP.Position).Magnitude
+                    if dist <= range and dist < minDist and isDowned ~= false then
+                        minDist = dist
+                        closest = plr
                     end
                 end
             end
         end
     end
-    return nearest
+    return closest
 end
 
--- [98] 救援光环循环
+-- ==================== 四个光环的循环 ====================
+-- 踩踏光环（跳过队友）
 task.spawn(function()
     while true do
-        if AuraConfig.E98_Enabled then
-            local enemy = findNearestEnemy()
-            if enemy then
+        if AuraConfig.Stomp.Enabled then
+            local target = getClosestTarget(AuraConfig.Stomp.Range, true)
+            if target then
                 pcall(function()
-                    Event98:FireServer(enemy.UserId)
+                    FireServer(STOMP_ACTION, target.UserId)
                 end)
             end
         end
-        task.wait(AuraConfig.E98_Interval)
+        task.wait(AuraConfig.Stomp.Interval)
     end
 end)
 
--- [211] 踩踏光环循环
+-- 逮捕光环（不检查队友，与提取脚本一致）
 task.spawn(function()
     while true do
-        if AuraConfig.E211_Enabled then
-            local enemy = findNearestEnemy()
-            if enemy then
+        if AuraConfig.Arrest.Enabled then
+            local target = getClosestTarget(AuraConfig.Arrest.Range, false)
+            if target then
                 pcall(function()
-                    Event211:FireServer(enemy.UserId)
+                    FireServer(ARREST_ACTION, target.UserId)
                 end)
             end
         end
-        task.wait(AuraConfig.E211_Interval)
+        task.wait(AuraConfig.Arrest.Interval)
     end
 end)
 
--- [41] 抓取光环
-local lastAura41 = 0
-RunService.Heartbeat:Connect(function()
-    if not AuraConfig.E41_Enabled then return end
-    local now = tick()
-    if now - lastAura41 < AuraConfig.E41_Interval then return end
-
-    local enemy = findNearestEnemy()
-    if enemy then
-        pcall(function()
-            Event41:FireServer(enemy.UserId)
-        end)
-        lastAura41 = now
+-- 抓取光环（跳过队友）
+task.spawn(function()
+    while true do
+        if AuraConfig.Grab.Enabled then
+            local target = getClosestTarget(AuraConfig.Grab.Range, true)
+            if target then
+                pcall(function()
+                    FireServer(GRAB_ACTION, target.UserId)
+                end)
+            end
+        end
+        task.wait(AuraConfig.Grab.Interval)
     end
 end)
 
--- ==================== 光环设置 UI（Obsidian 风格） ====================
-local ghLeft  = Tabs.gh:AddLeftGroupbox("救援事件")
-local ghMid   = Tabs.gh:AddLeftGroupbox("踩踏事件")
+-- 救援光环（不检查队友，救援任何倒地玩家）
+task.spawn(function()
+    while true do
+        if AuraConfig.Revive.Enabled then
+            local target = getClosestTarget(AuraConfig.Revive.Range, false)
+            if target then
+                pcall(function()
+                    FireServer(REVIVE_ACTION, target.UserId)
+                end)
+            end
+        end
+        task.wait(AuraConfig.Revive.Interval)
+    end
+end)
 
--- [98] 救援光环
-ghLeft:AddToggle("Aura98_Toggle", {
-    Text = "启用救援",
+-- ==================== Obsidian UI：gh 标签页 ====================
+local ghLeft  = Tabs.gh:AddLeftGroupbox("踩踏 / 逮捕")
+local ghRight = Tabs.gh:AddRightGroupbox("抓取 / 救援")
+
+-- 踩踏
+ghLeft:AddToggle("Aura_Stomp_Enable", {
+    Text = "启用踩踏光环",
     Default = false,
-    Callback = function(v) AuraConfig.E98_Enabled = v end,
+    Tooltip = "自动寻找 50 格内最近的敌人并踩踏",
+    Callback = function(v) AuraConfig.Stomp.Enabled = v end,
 })
-
-ghLeft:AddSlider("Aura98_Interval", {
-    Text = "救援间隔",
-    Default = 0.1, Min = 0.05, Max = 2, Rounding = 2,
-    Suffix = "s",
-    Callback = function(v) AuraConfig.E98_Interval = v end,
-})
-
--- [211] 踩踏光环
-ghMid:AddToggle("Aura211_Toggle", {          -- ★ 200 → 211
-    Text = "启用踩踏",
-    Default = false,
-    Callback = function(v) AuraConfig.E211_Enabled = v end,
-})
-
-ghMid:AddSlider("Aura211_Interval", {        -- ★ 200 → 211
+ghLeft:AddSlider("Aura_Stomp_Interval", {
     Text = "踩踏间隔",
-    Default = 0.1, Min = 0.05, Max = 2, Rounding = 2,
+    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
     Suffix = "s",
-    Callback = function(v) AuraConfig.E211_Interval = v end,
+    Callback = function(v) AuraConfig.Stomp.Interval = v end,
 })
 
--- [41] 抓取光环控件
-local ghRight2 = Tabs.gh:AddRightGroupbox("抓取光环")
+ghLeft:AddDivider()
 
-ghRight2:AddToggle("Aura41_Toggle", {        -- ★ 39 → 41
+-- 逮捕
+ghLeft:AddToggle("Aura_Arrest_Enable", {
+    Text = "启用逮捕光环",
+    Default = false,
+    Tooltip = "自动寻找 50 格内最近的倒地敌人并逮捕",
+    Callback = function(v) AuraConfig.Arrest.Enabled = v end,
+})
+ghLeft:AddSlider("Aura_Arrest_Interval", {
+    Text = "逮捕间隔",
+    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
+    Suffix = "s",
+    Callback = function(v) AuraConfig.Arrest.Interval = v end,
+})
+
+-- 抓取
+ghRight:AddToggle("Aura_Grab_Enable", {
     Text = "启用抓取光环",
     Default = false,
-    Callback = function(v) AuraConfig.E41_Enabled = v end,
+    Tooltip = "自动寻找 50 格内最近的敌人并抓取",
+    Callback = function(v) AuraConfig.Grab.Enabled = v end,
+})
+ghRight:AddSlider("Aura_Grab_Interval", {
+    Text = "抓取间隔",
+    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
+    Suffix = "s",
+    Callback = function(v) AuraConfig.Grab.Interval = v end,
 })
 
-ghRight2:AddSlider("Aura41_Interval", {      -- ★ 39 → 41
-    Text = "抓取光环间隔",
-    Default = 0.1, Min = 0.05, Max = 2, Rounding = 2,
-    Suffix = "s",
-    Callback = function(v) AuraConfig.E41_Interval = v end,
+ghRight:AddDivider()
+
+-- 救援
+ghRight:AddToggle("Aura_Revive_Enable", {
+    Text = "启用救援光环",
+    Default = false,
+    Tooltip = "自动寻找 50 格内最近的倒地玩家并救援",
+    Callback = function(v) AuraConfig.Revive.Enabled = v end,
 })
+ghRight:AddSlider("Aura_Revive_Interval", {
+    Text = "救援间隔",
+    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
+    Suffix = "s",
+    Callback = function(v) AuraConfig.Revive.Interval = v end,
+})
+
+ghRight:AddDivider()
 -- ==================== 瞄准页 ====================
 local AimConfig = {
     Enabled = false, BulletTrack = false, FOV = 200, Smoothness = 0.15,
@@ -4360,15 +4404,181 @@ local gmGroup = Tabs.gm:AddLeftGroupbox("购买（需在建筑范围内）")
 gmGroup:AddButton({
     Text = "奥菲当铺出售物品循环售卖",
     Func = function()
-        local Event = game:GetService("ReplicatedStorage").Shared.Core.Network:GetChildren()[155]
         task.spawn(function()
-            while task.wait(0.2) do
-                pcall(function() Event:InvokeServer("Ofy") end)
+            local Players           = game:GetService("Players")
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local LocalPlayer       = Players.LocalPlayer
+
+            local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
+            if not DevvFolder then
+                return warn("[自动出售] 请在《通缉》游戏内执行")
+            end
+
+            local DevvModule   = require(DevvFolder)
+            local load         = DevvModule.load
+            local Network      = load("Network")
+            local ClientData   = load("ClientData")
+            local invokeServer = Network.InvokeServer
+
+            local UpgradeUtil = require(ReplicatedStorage.Shared.Wanted.Modules.UpgradeUtil)
+            local Objects     = require(ReplicatedStorage.Shared.Wanted.Indicies.Objects)
+
+            -- ==================== 配置 ====================
+            local SELL_POS       = Vector3.new(-2826, 37, 1738)
+            local SELL_RADIUS    = 150
+            local NEED_BAG_FULL  = false
+            local BAG_THRESHOLD  = 0.1
+            local SELL_COOLDOWN  = 0.1
+            local LOOP_INTERVAL  = 0.01
+
+            -- ==================== 工具函数 ====================
+            local function getHRP()
+                local char = LocalPlayer.Character
+                return char and char:FindFirstChild("HumanoidRootPart")
+            end
+
+            local function getBagFullPercent()
+                local ok, data = pcall(function()
+                    return ClientData.Get()
+                end)
+                if not ok or type(data) ~= "table" or type(data.bag) ~= "table" then return 0 end
+
+                local totalWeight = 0
+                if type(data.bag.contents) == "table" then
+                    for _, itemName in pairs(data.bag.contents) do
+                        if type(itemName) == "string" then
+                            local w = Objects.GetDataProperty(itemName, "weight")
+                            if type(w) == "number" then totalWeight += w end
+                        end
+                    end
+                end
+
+                local cap = UpgradeUtil.GetBagCapacity()
+                if type(cap) ~= "number" or cap <= 0 then
+                    cap = type(data.bag.capacity) == "number" and data.bag.capacity or 1
+                end
+                return totalWeight / cap
+            end
+
+            local function isBagFull()
+                if LocalPlayer:GetAttribute("isBagFull") then return true end
+                if not LocalPlayer:GetAttribute("hasLootBag") then return false end
+                return getBagFullPercent() >= BAG_THRESHOLD
+            end
+
+            local function isNearSellPos()
+                local hrp = getHRP()
+                if not hrp then return false end
+                return (hrp.Position - SELL_POS).Magnitude <= SELL_RADIUS
+            end
+
+            -- ==================== 出售逻辑 ====================
+            local lastSellTime = 0
+
+            local function trySell()
+                local now = tick()
+                if now - lastSellTime < SELL_COOLDOWN then return end
+                if not isNearSellPos() then return end
+                if NEED_BAG_FULL and not isBagFull() then return end
+
+                pcall(invokeServer, "sellLoot", "Ofy")
+                lastSellTime = now
+            end
+
+            -- ==================== 循环执行 ====================
+            print("[自动出售] 已启动")
+            while true do
+                pcall(function()
+                    if getHRP() then
+                        trySell()
+                    end
+                end)
+                task.wait(LOOP_INTERVAL)
             end
         end)
     end,
 })
 
+gmGroup:AddButton({
+    Text = "C4➖250元",
+    Func = function()
+        local Players           = game:GetService("Players")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+        local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
+        if not DevvFolder then
+            return warn("[购买] 请在《通缉》游戏内执行")
+        end
+
+        local DevvModule   = require(DevvFolder)
+        local load         = DevvModule.load
+        local Network      = load("Network")
+        local invokeServer = Network.InvokeServer
+
+        -- 购买参数
+        local BuyParams = {
+            itemName       = "C4",
+            itemType       = "Ammo",
+            ammoToBuyIndex = 1,
+            categoryName   = "Explosives",
+            shopName       = "Guns"
+        }
+
+        local ok, err = pcall(function()
+            invokeServer("purchaseAmmo", BuyParams)
+        end)
+
+        if ok then
+            print("[购买] C4 购买请求已发送")
+        else
+            warn("[购买] 失败: " .. tostring(err))
+        end
+    end,
+})
+
+local refillRunning = false  -- 防止重复启动
+
+gmGroup:AddButton({
+    Text = "循环补充弹药",
+    Func = function()
+        if refillRunning then return end  -- 已在运行则忽略
+        refillRunning = true
+
+        task.spawn(function()
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+            local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
+            if not DevvFolder then
+                warn("[补弹] 请在《通缉》游戏内执行")
+                refillRunning = false
+                return
+            end
+
+            local DevvModule   = require(DevvFolder)
+            local load         = DevvModule.load
+            local Network      = load("Network")
+            local invokeServer = Network.InvokeServer
+
+            local RefillParams = {
+                refillAll = true
+            }
+
+            print("[补弹] 循环已启动")
+
+            while true do
+                local ok, err = pcall(function()
+                    invokeServer("purchaseAmmo", RefillParams)
+                end)
+
+                if not ok then
+                    warn("❌ 补弹失败（可能是没子弹了，或者不在补给点）: " .. tostring(err))
+                end
+
+                task.wait(0.1)  -- 0.1秒补一次
+            end
+        end)
+    end,
+})
 -- ==================== UI 设置页 ====================
 local MenuGroup = Tabs.UI:AddLeftGroupbox("菜单设置")
 
