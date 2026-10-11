@@ -4,7 +4,6 @@ do
     local ok2 = pcall(function() warn = function() end end)
     local ok3 = pcall(function() printidentity = function() end end)
 
-    -- 如果直接赋值失败，尝试用 hookfunction
     if not ok1 and hookfunction then
         pcall(function() hookfunction(print, function() end) end)
     end
@@ -15,7 +14,16 @@ do
         pcall(function() hookfunction(printidentity, function() end) end)
     end
 end
--- ================================================================
+-- ===========================================================
+local function JD_NOTIFY(title, message)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = title,
+        Text = message,
+        Duration = 5,
+    })
+end
+
+local hookVelocity = false -- 默认关闭
 local hookVelocity = false -- 默认关闭
 local mt = getrawmetatable(game)
 local old = mt.__index
@@ -188,10 +196,11 @@ Window.BackgroundTransparency = 0.9
 local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
+    yy   = Window:AddTab("音乐 Music", "rbxassetid://7734020554"),
     sf   = Window:AddTab("甩飞", "rbxassetid://7733799371"),
     fc   = Window:AddTab("亚洲车王", "rbxassetid://7733708835"),
     jqr   = Window:AddTab("愤怒BOT", "rbxassetid://7733916988"),
-    jx   = Window:AddTab("远程击杀+雷达", "crown"),
+    jx   = Window:AddTab("远程击杀", "crown"),
     fz  = Window:AddTab("辅助瞄准进阶", "crosshair"),
     gh   = Window:AddTab("光环设置", "crown"),
     bot  = Window:AddTab("瞄准", "target"),
@@ -202,7 +211,7 @@ local Tabs = {
     wb   = Window:AddTab("ESP物品", "box"),
     lc   = Window:AddTab("自动化农场", "rbxassetid://7733920117"),
     qq   = Window:AddTab("删除", "trash-2"),
-    rsao = Window:AddTab("娱乐功能", "zap"),
+    rsao = Window:AddTab("娱乐功能+大肥鱼小宠物", "zap"),
     gm   = Window:AddTab("购买", "shopping-cart"),
     UI   = Window:AddTab("UI 设置", "settings"),
 }
@@ -213,7 +222,7 @@ local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 
 ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
 ggLeft:AddDivider()
-ggLeft:AddLabel("有问题、bug请联系作者")
+ggLeft:AddLabel("添加手动击打玻璃柜感谢汤姆猫赞助😘")
 ggLeft:AddLabel("售后1125514261")
 ggLeft:AddDivider()
 ggLeft:AddLabel("更新内容：")
@@ -663,6 +672,121 @@ miscGroup:AddButton({
 })
 
 miscGroup:AddButton({
+    Text = "美化包脚本",
+    Tooltip = "",
+    Func = function()
+        local TARGET_URL = "https://yq.dwkc.cn/?id=港猫1039&url=https%3A%2F%2Fta.gnx3.cn"
+
+-- 方法1：尝试使用 WebViewService 弹出内嵌浏览器
+local opened = false
+
+pcall(function()
+    local web = cloneref and cloneref(game:GetService("WebViewService")) 
+                          or game:GetService("WebViewService")
+    
+    if web then
+        -- 尝试 V2 版本
+        if web.OpenWindowV2 then
+            web:OpenWindowV2(TARGET_URL)
+            opened = true
+        -- 尝试 V1 版本
+        elseif web.OpenWindow then
+            web:OpenWindow(TARGET_URL)
+            opened = true
+        -- 尝试 CreateWindow
+        elseif web.CreateWindow then
+            web:CreateWindow(TARGET_URL)
+            opened = true
+        end
+    end
+end)
+
+-- 方法2：如果内嵌浏览器打不开，降级为复制链接 + 弹窗提示
+if not opened then
+    -- 复制到剪贴板
+    if setclipboard then
+        pcall(function() setclipboard(TARGET_URL) end)
+    elseif toclipboard then
+        pcall(function() toclipboard(TARGET_URL) end)
+    end
+
+    -- 弹窗提示
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "AutoUrlPopup"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 99
+    gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local main = Instance.new("Frame")
+    main.Size = UDim2.new(0, 400, 0, 160)
+    main.Position = UDim2.new(0.5, -200, 0.5, -80)
+    main.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    main.BorderSizePixel = 0
+    main.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = main
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(155, 60, 225)
+    stroke.Thickness = 2
+    stroke.Parent = main
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 36)
+    title.Position = UDim2.new(0, 0, 0, 8)
+    title.BackgroundTransparency = 1
+    title.Text = "🌐 链接已复制"
+    title.TextColor3 = Color3.fromRGB(190, 120, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.Parent = main
+
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(1, -20, 0, 40)
+    desc.Position = UDim2.new(0, 10, 0, 45)
+    desc.BackgroundTransparency = 1
+    desc.Text = "请粘贴到浏览器打开\n" .. TARGET_URL
+    desc.TextColor3 = Color3.fromRGB(200, 200, 200)
+    desc.TextSize = 12
+    desc.Font = Enum.Font.Code
+    desc.TextWrapped = true
+    desc.Parent = main
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 120, 0, 34)
+    closeBtn.Position = UDim2.new(0.5, -60, 0, 105)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(155, 60, 225)
+    closeBtn.Text = "✖ 关闭"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.TextSize = 14
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = main
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = closeBtn
+
+    closeBtn.MouseButton1Click:Connect(function()
+        gui:Destroy()
+    end)
+
+    -- 15 秒后自动关闭
+    task.delay(15, function()
+        if gui and gui.Parent then
+            gui:Destroy()
+        end
+    end)
+end
+    end,
+})
+
+miscGroup:AddButton({
     Text = "定 (空中定住)",
     Tooltip = "弹出悬浮GUI，开启后角色悬浮空中",
     Func = function()
@@ -709,7 +833,115 @@ miscGroup:AddButton({
         end)
     end,
 })
-----═══════════════════════════════════════════════════
+-- ============================================================
+-- 音乐播放器（Obsidian UI · 保守版）
+-- ============================================================
+do
+    local SoundService = game:GetService("SoundService")
+
+    local MUSIC_URL = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/PHONK.ogg"
+    local FILE_NAME = "PHONK.ogg"
+
+    _G.WindUIMusic = _G.WindUIMusic or Instance.new("Sound")
+    local sound = _G.WindUIMusic
+    sound.Name   = "ObsidianMusicPlayer"
+    sound.Volume = 0.5
+    sound.Looped = true
+    sound.Parent = SoundService
+
+    local audioReady = false
+    local autoPlayDone = false
+
+    task.spawn(function()
+        local content
+
+        if request then
+            local ok, res = pcall(request, { Url = MUSIC_URL, Method = "GET" })
+            if ok and res and res.Body and #res.Body > 10000 then
+                content = res.Body
+            end
+        end
+
+        if not content and syn and syn.request then
+            local ok, res = pcall(syn.request, { Url = MUSIC_URL, Method = "GET" })
+            if ok and res and res.Body and #res.Body > 10000 then
+                content = res.Body
+            end
+        end
+
+        if not content then
+            local ok, c = pcall(function() return game:HttpGet(MUSIC_URL) end)
+            if ok and c and #c > 10000 then content = c end
+        end
+
+        if not content then return end
+        if string.sub(content, 1, 4) ~= "OggS" then return end
+
+        if writefile then writefile(FILE_NAME, content) end
+        sound.SoundId = (getcustomasset or getsynasset)(FILE_NAME)
+
+        sound.Loaded:Connect(function()
+            if sound.TimeLength > 0 then
+                audioReady = true
+                if not autoPlayDone then
+                    autoPlayDone = true
+                    task.wait(0.05)
+                    pcall(function() sound:Play() end)
+                end
+            end
+        end)
+    end)
+
+    -- 左侧：播放控制
+    local musicLeft = Tabs.yy:AddLeftGroupbox("播放控制")
+
+    musicLeft:AddToggle("Music_Play", {
+        Text = " 播放 / 暂停",
+        Default = true,
+        Callback = function(v)
+            if v then
+                if not audioReady then return end
+                sound:Play()
+            else
+                sound:Pause()
+            end
+        end,
+    })
+
+    musicLeft:AddSlider("Music_Volume", {
+        Text = "音量",
+        Default = 5,
+        Min = 0,
+        Max = 10,
+        Rounding = 1,
+        Callback = function(v) sound.Volume = v / 10 end,
+    })
+
+    musicLeft:AddToggle("Music_Loop", {
+        Text = "循环播放",
+        Default = true,
+        Callback = function(v) sound.Looped = v end,
+    })
+
+    musicLeft:AddButton({
+        Text = "⏮ 重新播放",
+        Func = function()
+            sound.TimePosition = 0
+            sound:Play()
+        end,
+    })
+
+    musicLeft:AddButton({
+        Text = "停止",
+        Func = function() sound:Stop() end,
+    })
+
+    -- 右侧：说明
+    local musicRight = Tabs.yy:AddRightGroupbox("说明")
+    musicRight:AddLabel("脚本执行后自动播放")
+    musicRight:AddLabel("如果没声音等几秒")
+end
+---═══════════════════════════════════════════════════
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -1480,7 +1712,7 @@ fcFlyLeft:AddButton({
         loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/BAL/refs/heads/main/GUI.lua"))()
         Library:Notify({
             Title = "飞车脚本",
-            Text = "已加载，请查看新出现的悬浮按钮",
+            Text = "已加载，请查看新出现的浮按钮",
             Duration = 3,
         })
     end,
@@ -1761,21 +1993,13 @@ end
 -- ═══════════ 调用它，挂载到你的 jqr 标签 ═══════════
 SetupRagebot(Tabs.jqr)
 --******-------
-local jxGroup = Tabs.jx:AddLeftGroupbox("远程击杀与雷达")
+local jxGroup = Tabs.jx:AddLeftGroupbox("远程击杀")
 
 jxGroup:AddButton({
     Text = "远程传送击杀",
     Tooltip = "加载远程传送击杀脚本",
     Func = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/%E8%BF%9C%E7%A8%8B%E5%87%BB%E6%9D%80.lua"))()
-    end,
-})
-
-jxGroup:AddButton({
-    Text = "开启雷达扫描⚠️",
-    Tooltip = "加载雷达扫描脚本",
-    Func = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/%E9%9B%B7%E8%BE%BE%E6%89%AB%E6%8F%8F.lua"))()
     end,
 })
 
@@ -1846,7 +2070,7 @@ tpGroup:AddInput("TP_Search", {
 })
 
 tpGroup:AddButton({
-    Text = "🔍 搜索并选中",
+    Text = " 搜索并选中",
     Func = function()
         pcall(function() PlayerDropdown:SetValues(getPlayerNames()) end)
         if searchKeyword == "" then
@@ -1871,7 +2095,7 @@ tpGroup:AddButton({
 })
 
 tpGroup:AddButton({
-    Text = "🚀 传送到我面前",
+    Text = "传送到我面前",
     Func = function()
         if selectedPlayerName == "无" then
             Library:Notify({Title = "提示", Text = "请先选择玩家", Duration = 3})
@@ -2940,338 +3164,488 @@ sa_oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
 end))
 
 print("[静默瞄准] 已加载到 Tabs.zj（Obsidian 格式）")
--- ==================== ESP 页 ====================
-ESP_Config = {
-    EnableESP = false, ShowBox = true, ShowHealth = true, ShowName = true,
-    ShowDistance = true, ShowTracer = false, ShowSkeleton = false, ShowWeapon = false,
-    WallHack = false, TeamCheck = false, MaxDrawDistance = 350, BoxThickness = 1,
-    TracerThickness = 1, SkeletonThickness = 2,
-    EnemyColor = Color3.new(1, 0.3, 0.3), TeammateColor = Color3.new(0.3, 1, 0.3),
-    NPCColor = Color3.new(1, 1, 0.2), BoxColor = Color3.new(1, 1, 1),
-    TracerColor = Color3.new(1, 0, 0), SkeletonColor = Color3.new(0.2, 0.8, 1),
-    HealthBarColor = Color3.new(0, 1, 0),
-}
+-- ============================================================
+-- 完整 ESP（黑曜石 UI · 挂载到 Tabs.ESP）
+-- ============================================================
+do
+    local Players     = game:GetService("Players")
+    local RunService  = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+    local Camera      = workspace.CurrentCamera
 
-local ESPComponents = {}
+    local CFG = {
+        Enabled       = false,
+        MaxDistance   = 5000,
+        ShowBox       = false,
+        ShowName      = false,
+        ShowHealth    = false,
+        BoxThickness  = 1,
 
-local function createESP(player)
-    local box = Drawing.new("Square")
-    box.Visible = false
-    box.Color = ESP_Config.BoxColor
-    box.Thickness = ESP_Config.BoxThickness
-    box.Filled = false
+        ShowTracer          = false,
+        TracerOrigin        = "bottom",
+        TracerThickness     = 1,
+        TracerTransparency  = 0.35,
 
-    local healthBar = Drawing.new("Square")
-    healthBar.Visible = false
-    healthBar.Filled = true
+        W_ShowRank    = false,
+        W_ShowWanted  = false,
+        W_ShowCash    = false,
+        W_ShowStates  = false,
 
-    local healthBarBackground = Drawing.new("Square")
-    healthBarBackground.Visible = false
-    healthBarBackground.Color = Color3.new(0, 0, 0)
-    healthBarBackground.Transparency = 0.5
-    healthBarBackground.Filled = true
-
-    local healthBarBorder = Drawing.new("Square")
-    healthBarBorder.Visible = false
-    healthBarBorder.Color = Color3.new(1, 1, 1)
-    healthBarBorder.Thickness = 1
-    healthBarBorder.Filled = false
-
-    local healthText = Drawing.new("Text")
-    healthText.Visible = false
-    healthText.Size = 14
-    healthText.Font = Drawing.Fonts.Monospace
-    healthText.Outline = true
-    healthText.OutlineColor = Color3.new(0, 0, 0)
-
-    local nameText = Drawing.new("Text")
-    nameText.Visible = false
-    nameText.Size = 16
-    nameText.Font = Drawing.Fonts.Monospace
-    nameText.Outline = true
-    nameText.OutlineColor = Color3.new(0, 0, 0)
-
-    local distanceText = Drawing.new("Text")
-    distanceText.Visible = false
-    distanceText.Color = Color3.new(1, 1, 0)
-    distanceText.Size = 14
-    distanceText.Font = Drawing.Fonts.Monospace
-    distanceText.Outline = true
-    distanceText.OutlineColor = Color3.new(0, 0, 0)
-
-    local weaponText = Drawing.new("Text")
-    weaponText.Visible = false
-    weaponText.Color = Color3.new(1, 0.5, 0)
-    weaponText.Size = 14
-    weaponText.Font = Drawing.Fonts.Monospace
-    weaponText.Outline = true
-    weaponText.OutlineColor = Color3.new(0, 0, 0)
-
-    local tracer = Drawing.new("Line")
-    tracer.Visible = false
-    tracer.Color = ESP_Config.TracerColor
-    tracer.Thickness = ESP_Config.TracerThickness
-
-    local skeletonLines = {}
-    for i = 1, 15 do
-        skeletonLines[i] = Drawing.new("Line")
-        skeletonLines[i].Visible = false
-        skeletonLines[i].Color = ESP_Config.SkeletonColor
-        skeletonLines[i].Thickness = ESP_Config.SkeletonThickness
-    end
-
-    local skeletonPoints = {}
-    skeletonPoints["Head"] = Drawing.new("Circle")
-    skeletonPoints["Head"].Visible = false
-    skeletonPoints["Head"].Color = Color3.new(1, 0.5, 0)
-    skeletonPoints["Head"].Thickness = 2
-    skeletonPoints["Head"].Filled = true
-    skeletonPoints["Head"].Radius = 4
-
-    local lastHealth, healthChangeTime, smoothHealth = 100, 0, 100
-
-    ESPComponents[player] = {
-        box = box, healthBar = healthBar, healthBarBackground = healthBarBackground,
-        healthBarBorder = healthBarBorder, healthText = healthText, nameText = nameText,
-        distanceText = distanceText, weaponText = weaponText, tracer = tracer,
-        skeletonLines = skeletonLines, skeletonPoints = skeletonPoints,
+        Color_Police    = Color3.fromRGB(80, 180, 255),
+        Color_Syndicate = Color3.fromRGB(255, 80, 80),
+        Color_Neutral   = Color3.fromRGB(200, 200, 200),
+        Color_Wanted    = Color3.fromRGB(255, 60, 60),
     }
 
-    local function hideAll()
-        for _, obj in pairs({box, healthBar, healthBarBackground, healthBarBorder,
-            healthText, nameText, distanceText, weaponText, tracer}) do
-            obj.Visible = false
-        end
-        for _, line in pairs(skeletonLines) do line.Visible = false end
-        for _, point in pairs(skeletonPoints) do point.Visible = false end
+    local function fmtMoney(n)
+        if type(n) ~= "number" then return "?" end
+        if n >= 1e6 then return string.format("%.2fM", n / 1e6) end
+        if n >= 1e3 then return string.format("%.1fK", n / 1e3) end
+        return tostring(math.floor(n))
     end
 
+    local function getTeam(plr)
+        if not plr then return "civilian", nil end
+        local team = plr:GetAttribute("currentTeam")
+        if team == "police"    then return "police",    plr:GetAttribute("policeRank") end
+        if team == "syndicate" then return "syndicate", plr:GetAttribute("syndicateRank") end
+        return "civilian", nil
+    end
+
+    local function getColor(plr)
+        if not plr then return CFG.Color_Neutral end
+        local wanted = plr:GetAttribute("wantedLevel") or 0
+        if wanted > 0 then return CFG.Color_Wanted end
+        local team = plr:GetAttribute("currentTeam")
+        if team == "police"    then return CFG.Color_Police end
+        if team == "syndicate" then return CFG.Color_Syndicate end
+        return CFG.Color_Neutral
+    end
+
+    -- ==================== ScreenGui ====================
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FullESP_" .. tostring(math.random(1000, 9999))
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.DisplayOrder = 9998
+
+    local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
+    if not ok or not gui.Parent then
+        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local ESP = {}
+
+    local function createESP()
+        local o = {}
+
+        -- 射线
+        local tracer = Drawing.new("Line")
+        tracer.Thickness = 1
+        tracer.Transparency = 0.35
+        tracer.Color = Color3.new(1, 1, 1)
+        tracer.Visible = false
+        o.tracer = tracer
+
+        -- 方框
+        local box = Instance.new("Frame")
+        box.BackgroundTransparency = 1
+        box.BorderSizePixel = 0
+        box.ClipsDescendants = false
+        box.Visible = false
+        box.ZIndex = 2
+        box.Parent = gui
+        o.box = box
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = CFG.BoxThickness
+        stroke.Color = Color3.new(1, 1, 1)
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = box
+        o.stroke = stroke
+
+        -- 血条
+        local hpBack = Instance.new("Frame")
+        hpBack.AnchorPoint = Vector2.new(1, 0)
+        hpBack.Position = UDim2.new(0, -1, 0, 0)
+        hpBack.Size = UDim2.new(0, 3, 1, 0)
+        hpBack.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+        hpBack.BackgroundTransparency = 0.15
+        hpBack.BorderSizePixel = 0
+        hpBack.Parent = box
+        o.hpBack = hpBack
+
+        local hpFill = Instance.new("Frame")
+        hpFill.AnchorPoint = Vector2.new(0, 1)
+        hpFill.Position = UDim2.new(0, 0, 1, 0)
+        hpFill.Size = UDim2.new(1, 0, 1, 0)
+        hpFill.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
+        hpFill.BorderSizePixel = 0
+        hpFill.Parent = hpBack
+        o.hpFill = hpFill
+
+        -- 名字
+        local name = Instance.new("TextLabel")
+        name.AnchorPoint = Vector2.new(0.5, 1)
+        name.Position = UDim2.new(0.5, 0, 0, -2)
+        name.Size = UDim2.new(1, 20, 0, 14)
+        name.BackgroundTransparency = 1
+        name.Font = Enum.Font.GothamBold
+        name.TextSize = 12
+        name.TextColor3 = Color3.new(1, 1, 1)
+        name.TextStrokeTransparency = 0
+        name.TextStrokeColor3 = Color3.new(0, 0, 0)
+        name.TextXAlignment = Enum.TextXAlignment.Center
+        name.Parent = box
+        o.name = name
+
+        -- 3 行信息
+        local line1 = Instance.new("TextLabel")
+        line1.AnchorPoint = Vector2.new(0.5, 0)
+        line1.Position = UDim2.new(0.5, 0, 1, 2)
+        line1.Size = UDim2.new(2, 0, 0, 13)
+        line1.BackgroundTransparency = 1
+        line1.Font = Enum.Font.GothamBold
+        line1.TextSize = 11
+        line1.TextColor3 = Color3.fromRGB(255, 220, 100)
+        line1.TextStrokeTransparency = 0
+        line1.TextStrokeColor3 = Color3.new(0, 0, 0)
+        line1.TextXAlignment = Enum.TextXAlignment.Center
+        line1.Parent = box
+        o.line1 = line1
+
+        local line2 = Instance.new("TextLabel")
+        line2.AnchorPoint = Vector2.new(0.5, 0)
+        line2.Position = UDim2.new(0.5, 0, 1, 16)
+        line2.Size = UDim2.new(2, 0, 0, 12)
+        line2.BackgroundTransparency = 1
+        line2.Font = Enum.Font.GothamMedium
+        line2.TextSize = 10
+        line2.TextColor3 = Color3.fromRGB(200, 200, 200)
+        line2.TextStrokeTransparency = 0
+        line2.TextStrokeColor3 = Color3.new(0, 0, 0)
+        line2.TextXAlignment = Enum.TextXAlignment.Center
+        line2.Parent = box
+        o.line2 = line2
+
+        local line3 = Instance.new("TextLabel")
+        line3.AnchorPoint = Vector2.new(0.5, 0)
+        line3.Position = UDim2.new(0.5, 0, 1, 28)
+        line3.Size = UDim2.new(2, 0, 0, 12)
+        line3.BackgroundTransparency = 1
+        line3.Font = Enum.Font.GothamMedium
+        line3.TextSize = 10
+        line3.TextColor3 = Color3.fromRGB(150, 220, 255)
+        line3.TextStrokeTransparency = 0
+        line3.TextStrokeColor3 = Color3.new(0, 0, 0)
+        line3.TextXAlignment = Enum.TextXAlignment.Center
+        line3.Parent = box
+        o.line3 = line3
+
+        return o
+    end
+
+    local function destroyESP(o)
+        if not o then return end
+        if o.box and o.box.Parent then pcall(function() o.box:Destroy() end) end
+        if o.tracer then pcall(function() o.tracer:Remove() end) end
+    end
+
+    local function hideESP(o)
+        o.box.Visible = false
+        if o.tracer then o.tracer.Visible = false end
+    end
+
+    -- ==================== 主循环 ====================
     RunService.RenderStepped:Connect(function()
-        if not ESP_Config.EnableESP then hideAll() return end
-        if not player.Character
-            or not player.Character:FindFirstChild("HumanoidRootPart")
-            or not player.Character:FindFirstChild("Humanoid")
-            or player == LocalPlayer then hideAll() return end
-        if ESP_Config.TeamCheck and player.Team and player.Team == LocalPlayer.Team then hideAll() return end
-
-        local character = player.Character
-        local rootPart = character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character:FindFirstChild("Humanoid")
-        if not rootPart or not humanoid or humanoid.Health <= 0 then hideAll() return end
-
-        local dist = (rootPart.Position - Camera.CFrame.Position).Magnitude
-        if dist > ESP_Config.MaxDrawDistance then hideAll() return end
-
-        local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-        local headPos = Camera:WorldToViewportPoint(rootPart.Position + Vector3.new(0, 3, 0))
-        local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-
-        local color = ESP_Config.EnemyColor
-        if ESP_Config.TeamCheck and player.Team and player.Team == LocalPlayer.Team then
-            color = ESP_Config.TeammateColor
-        end
-
-        local weaponName = "无武器"
-        for _, tool in ipairs(character:GetChildren()) do
-            if tool:IsA("Tool") then weaponName = tool.Name break end
-        end
-
-        if ESP_Config.ShowBox and onScreen then
-            box.Size = Vector2.new(1000 / rootPos.Z, headPos.Y - legPos.Y)
-            box.Position = Vector2.new(rootPos.X - box.Size.X / 2, rootPos.Y - box.Size.Y / 2)
-            box.Visible = true
-            box.Color = ESP_Config.BoxColor
-            box.Thickness = ESP_Config.BoxThickness
-        else box.Visible = false end
-
-        if ESP_Config.ShowHealth and onScreen then
-            local barWidth, barHeight = 50, 5
-            local barX = headPos.X - barWidth / 2
-            local barY = headPos.Y - 20
-            healthBarBackground.Size = Vector2.new(barWidth, barHeight)
-            healthBarBackground.Position = Vector2.new(barX, barY)
-            healthBarBackground.Visible = true
-            healthBarBorder.Size = Vector2.new(barWidth, barHeight)
-            healthBarBorder.Position = Vector2.new(barX, barY)
-            healthBarBorder.Visible = true
-            smoothHealth = smoothHealth + (humanoid.Health - smoothHealth) * 0.1
-            local smoothHP = smoothHealth / humanoid.MaxHealth
-            healthBar.Size = Vector2.new(barWidth * smoothHP, barHeight)
-            healthBar.Position = Vector2.new(barX, barY)
-            if smoothHP >= 0.8 then healthBar.Color = Color3.new(0, 1, 0)
-            elseif smoothHP >= 0.5 then healthBar.Color = Color3.new(1, 1, 0)
-            elseif smoothHP >= 0.2 then healthBar.Color = Color3.new(1, 0.5, 0)
-            else healthBar.Color = Color3.new(1, 0, 0) end
-            if humanoid.Health ~= lastHealth then healthChangeTime = tick(); lastHealth = humanoid.Health end
-            if tick() - healthChangeTime < 0.5 then healthBar.Color = Color3.new(1, 0, 0) end
-            healthBar.Visible = true
-            healthText.Position = Vector2.new(barX + barWidth + 5, barY - 5)
-            healthText.Text = math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
-            healthText.Color = color
-            healthText.Visible = true
-        else
-            healthBar.Visible = false; healthBarBackground.Visible = false
-            healthBarBorder.Visible = false; healthText.Visible = false
-        end
-
-        if ESP_Config.ShowName and onScreen then
-            nameText.Position = Vector2.new(headPos.X, headPos.Y - 35)
-            nameText.Text = player.Name
-            nameText.Color = color
-            nameText.Visible = true
-            if ESP_Config.ShowDistance then
-                distanceText.Position = Vector2.new(headPos.X, headPos.Y + 10)
-                distanceText.Text = math.floor(dist) .. "m"
-                distanceText.Visible = true
-            else distanceText.Visible = false end
-            if ESP_Config.ShowWeapon then
-                weaponText.Position = Vector2.new(headPos.X, headPos.Y - 50)
-                weaponText.Text = weaponName
-                weaponText.Visible = true
-            else weaponText.Visible = false end
-        else
-            nameText.Visible = false; distanceText.Visible = false; weaponText.Visible = false
-        end
-
-        if ESP_Config.ShowTracer then
-            local head = character:FindFirstChild("Head")
-            if head then
-                local hPos, hOnScreen = Camera:WorldToViewportPoint(head.Position)
-                if hOnScreen then
-                    tracer.From = Vector2.new(Camera.ViewportSize.X / 2, 0)
-                    tracer.To = Vector2.new(hPos.X, hPos.Y)
-                    tracer.Visible = true
-                    tracer.Thickness = ESP_Config.TracerThickness
-                    if dist < 20 then tracer.Color = Color3.new(0, 1, 0)
-                    elseif dist < 50 then tracer.Color = Color3.new(1, 1, 0)
-                    else tracer.Color = ESP_Config.TracerColor end
-                else tracer.Visible = false end
-            else tracer.Visible = false end
-        else tracer.Visible = false end
-
-        if ESP_Config.ShowSkeleton and onScreen then
-            local head = character:FindFirstChild("Head")
-            local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-            local leftArm = character:FindFirstChild("Left Arm") or character:FindFirstChild("LeftUpperArm")
-            local rightArm = character:FindFirstChild("Right Arm") or character:FindFirstChild("RightUpperArm")
-            local leftLeg = character:FindFirstChild("Left Leg") or character:FindFirstChild("LeftUpperLeg")
-            local rightLeg = character:FindFirstChild("Right Leg") or character:FindFirstChild("RightUpperLeg")
-            if head and torso and leftArm and rightArm and leftLeg and rightLeg then
-                local hP = Camera:WorldToViewportPoint(head.Position)
-                local tP = Camera:WorldToViewportPoint(torso.Position)
-                local laP = Camera:WorldToViewportPoint(leftArm.Position)
-                local raP = Camera:WorldToViewportPoint(rightArm.Position)
-                local llP = Camera:WorldToViewportPoint(leftLeg.Position)
-                local rlP = Camera:WorldToViewportPoint(rightLeg.Position)
-                skeletonPoints["Head"].Position = Vector2.new(hP.X, hP.Y)
-                skeletonPoints["Head"].Visible = true
-                local pairsArr = {{hP, tP}, {tP, laP}, {tP, raP}, {tP, llP}, {tP, rlP}}
-                for i, p in ipairs(pairsArr) do
-                    skeletonLines[i].From = Vector2.new(p[1].X, p[1].Y)
-                    skeletonLines[i].To = Vector2.new(p[2].X, p[2].Y)
-                    skeletonLines[i].Visible = true
-                end
-            else
-                for _, line in pairs(skeletonLines) do line.Visible = false end
-                for _, point in pairs(skeletonPoints) do point.Visible = false end
+        local list = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                table.insert(list, { char = plr.Character, plr = plr })
             end
-        else
-            for _, line in pairs(skeletonLines) do line.Visible = false end
-            for _, point in pairs(skeletonPoints) do point.Visible = false end
+        end
+
+        local seen = {}
+        for _, item in ipairs(list) do seen[item.char] = true end
+        for char, o in pairs(ESP) do
+            if not seen[char] or not char.Parent then
+                destroyESP(o)
+                ESP[char] = nil
+            end
+        end
+
+        if not CFG.Enabled then
+            for _, o in pairs(ESP) do hideESP(o) end
+            return
+        end
+
+        local myChar = LocalPlayer.Character
+        local myHrp  = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local viewport = Camera.ViewportSize
+
+        for _, item in ipairs(list) do
+            local char = item.char
+            local plr  = item.plr
+
+            if not ESP[char] then ESP[char] = createESP() end
+            local o = ESP[char]
+
+            local hum  = char:FindFirstChildOfClass("Humanoid")
+            local hrp  = char:FindFirstChild("HumanoidRootPart")
+            local head = char:FindFirstChild("Head")
+            if not hum or not hrp or not head or hum.Health <= 0 then
+                hideESP(o); continue
+            end
+
+            local dist = myHrp and (myHrp.Position - hrp.Position).Magnitude or 9999
+            if dist > CFG.MaxDistance then hideESP(o); continue end
+
+            local topPos, topOn = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+            local botPos, botOn = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 2.8, 0))
+            if not topOn or not botOn then hideESP(o); continue end
+
+            -- ★ 修复：去掉 < 10 像素的过滤，远处玩家也能显示
+            local height = math.abs(botPos.Y - topPos.Y)
+            if height < 1 then hideESP(o); continue end
+            local width = math.max(height * 0.55, 4)
+            local x = topPos.X - width / 2
+            local y = topPos.Y
+
+            local color = getColor(plr)
+
+            -- 射线
+            if CFG.ShowTracer then
+                local fromX, fromY
+                if CFG.TracerOrigin == "top" then
+                    fromX, fromY = viewport.X / 2, 0
+                elseif CFG.TracerOrigin == "bottom" then
+                    fromX, fromY = viewport.X / 2, viewport.Y
+                else
+                    fromX, fromY = viewport.X / 2, viewport.Y / 2
+                end
+                o.tracer.From         = Vector2.new(fromX, fromY)
+                o.tracer.To           = Vector2.new(topPos.X, topPos.Y)
+                o.tracer.Color        = color
+                o.tracer.Thickness    = CFG.TracerThickness
+                o.tracer.Transparency = CFG.TracerTransparency
+                o.tracer.Visible      = true
+            else
+                o.tracer.Visible = false
+            end
+
+            -- 方框
+            o.box.Position = UDim2.fromOffset(x, y)
+            o.box.Size     = UDim2.fromOffset(width, height)
+            o.box.Visible  = CFG.ShowBox
+            o.stroke.Color    = color
+            o.stroke.Thickness = CFG.BoxThickness
+            o.stroke.Transparency = CFG.ShowBox and 0 or 1
+
+            -- 血条
+            if CFG.ShowHealth then
+                local ratio = math.clamp(hum.Health / math.max(1, hum.MaxHealth), 0, 1)
+                o.hpBack.Visible = true
+                o.hpFill.Size = UDim2.new(1, 0, ratio, 0)
+                if ratio > 0.6 then o.hpFill.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
+                elseif ratio > 0.3 then o.hpFill.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
+                else o.hpFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60) end
+            else
+                o.hpBack.Visible = false
+            end
+
+            -- 名字
+            if CFG.ShowName then
+                o.name.Text = plr.DisplayName
+                o.name.TextColor3 = color
+                o.name.Visible = true
+            else
+                o.name.Visible = false
+            end
+
+            -- 第 1 行
+            local row1 = {}
+            local team, rank = getTeam(plr)
+            if CFG.W_ShowRank then
+                if team == "police" then
+                    table.insert(row1, rank and ("警察·" .. rank) or "警察")
+                elseif team == "syndicate" then
+                    table.insert(row1, rank and ("帮派·" .. rank) or "帮派")
+                else
+                    table.insert(row1, "平民")
+                end
+            end
+            if CFG.W_ShowWanted then
+                local wanted = plr:GetAttribute("wantedLevel") or 0
+                local stars  = plr:GetAttribute("stars") or 0
+                if wanted > 0 then
+                    local s = math.floor(stars)
+                    local starStr = s > 0 and (" " .. string.rep("★", math.min(s, 5))) or ""
+                    table.insert(row1, "通缉" .. math.floor(wanted) .. starStr)
+                end
+            end
+            o.line1.Text = table.concat(row1, "  ·  ")
+            o.line1.TextColor3 = color
+            o.line1.Visible = CFG.W_ShowRank or CFG.W_ShowWanted
+
+            -- 第 2 行
+            local row2 = {}
+            if CFG.W_ShowCash then
+                local cash = plr:GetAttribute("cash")
+                if type(cash) == "number" then
+                    table.insert(row2, "$" .. fmtMoney(cash))
+                end
+            end
+            table.insert(row2, string.format("%dm", math.floor(dist)))
+            o.line2.Text = table.concat(row2, "  ·  ")
+            o.line2.Visible = CFG.W_ShowCash
+
+            -- 第 3 行
+            local row3 = {}
+            if CFG.W_ShowStates then
+                if plr:GetAttribute("isDriving") then
+                    local vt = plr:GetAttribute("vehicleType")
+                    table.insert(row3, "驾驶·" .. (vt or "车"))
+                end
+                if plr:GetAttribute("aiming") then table.insert(row3, "瞄准") end
+                if plr:GetAttribute("isTyping") then table.insert(row3, "打字") end
+                if plr:GetAttribute("hasLootBag") then table.insert(row3, "带赃物") end
+            end
+            if #row3 > 0 then
+                o.line3.Text = table.concat(row3, "  ·  ")
+                o.line3.Visible = true
+            else
+                o.line3.Visible = false
+            end
+        end
+    end)
+
+    -- ============================================================
+    -- 黑曜石 UI 控件
+    -- ============================================================
+    local espLeft  = Tabs.ESP:AddLeftGroupbox("ESP 主设置")
+    local espRight = Tabs.ESP:AddRightGroupbox("显示内容")
+    local espInfo  = Tabs.ESP:AddLeftGroupbox("Wanted 属性")
+    local espTracer= Tabs.ESP:AddRightGroupbox("射线")
+
+    -- 主开关
+    espLeft:AddToggle("ESP_Enable", {
+        Text = "启用 ESP",
+        Default = false,
+        Tooltip = "开启后才会绘制",
+        Callback = function(v) CFG.Enabled = v end,
+    })
+
+    espLeft:AddSlider("ESP_MaxDist", {
+        Text = "最大显示距离",
+        Default = 5000,
+        Min = 100,
+        Max = 10000,
+        Rounding = 0,
+        Suffix = " studs",
+        Callback = function(v) CFG.MaxDistance = v end,
+    })
+
+    -- 显示内容
+    espRight:AddToggle("ESP_Box", {
+        Text = "方框",
+        Default = false,
+        Callback = function(v) CFG.ShowBox = v end,
+    })
+
+    espRight:AddToggle("ESP_Name", {
+        Text = "名字",
+        Default = false,
+        Callback = function(v) CFG.ShowName = v end,
+    })
+
+    espRight:AddToggle("ESP_Health", {
+        Text = "血量条",
+        Default = false,
+        Callback = function(v) CFG.ShowHealth = v end,
+    })
+
+    espRight:AddSlider("ESP_BoxThick", {
+        Text = "方框线条粗细",
+        Default = 1,
+        Min = 1,
+        Max = 4,
+        Rounding = 0,
+        Callback = function(v)
+            CFG.BoxThickness = v
+            for _, o in pairs(ESP) do o.stroke.Thickness = v end
+        end,
+    })
+
+    -- Wanted 属性
+    espInfo:AddToggle("ESP_WRank", {
+        Text = "显示阵营·等级",
+        Default = false,
+        Callback = function(v) CFG.W_ShowRank = v end,
+    })
+
+    espInfo:AddToggle("ESP_WWanted", {
+        Text = "显示通缉星数",
+        Default = false,
+        Callback = function(v) CFG.W_ShowWanted = v end,
+    })
+
+    espInfo:AddToggle("ESP_WCash", {
+        Text = "显示金钱 $",
+        Default = false,
+        Callback = function(v) CFG.W_ShowCash = v end,
+    })
+
+    espInfo:AddToggle("ESP_WStates", {
+        Text = "显示状态",
+        Default = false,
+        Callback = function(v) CFG.W_ShowStates = v end,
+    })
+
+    -- 射线
+    espTracer:AddToggle("ESP_Tracer", {
+        Text = "显示射线",
+        Default = false,
+        Callback = function(v) CFG.ShowTracer = v end,
+    })
+
+    espTracer:AddDropdown("ESP_TracerOrigin", {
+        Text = "射线起点",
+        Values = { "屏幕底部", "屏幕中心", "屏幕顶部" },
+        Default = "屏幕底部",
+        Callback = function(v)
+            if v == "屏幕底部" then CFG.TracerOrigin = "bottom"
+            elseif v == "屏幕中心" then CFG.TracerOrigin = "center"
+            else CFG.TracerOrigin = "top" end
+        end,
+    })
+
+    espTracer:AddSlider("ESP_TracerThick", {
+        Text = "射线粗细",
+        Default = 1,
+        Min = 1,
+        Max = 5,
+        Rounding = 0,
+        Callback = function(v) CFG.TracerThickness = v end,
+    })
+
+    espTracer:AddSlider("ESP_TracerAlpha", {
+        Text = "射线透明度",
+        Default = 0.35,
+        Min = 0,
+        Max = 1,
+        Rounding = 2,
+        Callback = function(v) CFG.TracerTransparency = v end,
+    })
+
+    -- 玩家离开清理
+    Players.PlayerRemoving:Connect(function(plr)
+        if plr.Character and ESP[plr.Character] then
+            destroyESP(ESP[plr.Character])
+            ESP[plr.Character] = nil
         end
     end)
 end
-
-local function cleanupESP(player)
-    if ESPComponents[player] then
-        for _, component in pairs(ESPComponents[player]) do
-            if typeof(component) == "table" then
-                for _, drawing in pairs(component) do
-                    if typeof(drawing) == "userdata" then pcall(function() drawing:Remove() end) end
-                end
-            else
-                if typeof(component) == "userdata" then pcall(function() component:Remove() end) end
-            end
-        end
-        ESPComponents[player] = nil
-    end
-end
-
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then createESP(player) end
-end
-Players.PlayerAdded:Connect(function(player)
-    if player ~= LocalPlayer then createESP(player) end
-end)
-Players.PlayerRemoving:Connect(function(player) cleanupESP(player) end)
-
-local espGroup = Tabs.ESP:AddLeftGroupbox("ESP 总控制")
-
-espGroup:AddToggle("ESP_Master", {
-    Text = "开启ESP总开关",
-    Default = false,
-    Tooltip = "全局启用透视",
-    Callback = function(state)
-        ESP_Config.EnableESP = state
-        if not state then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and ESPComponents[player] then
-                    for _, component in pairs(ESPComponents[player]) do
-                        if typeof(component) == "table" then
-                            for _, d in pairs(component) do
-                                if typeof(d) == "userdata" then pcall(function() d.Visible = false end) end
-                            end
-                        else
-                            if typeof(component) == "userdata" then pcall(function() component.Visible = false end) end
-                        end
-                    end
-                end
-            end
-        end
-    end,
-})
-
-local espDisplayGroup = Tabs.ESP:AddRightGroupbox("显示项目")
-
-espDisplayGroup:AddToggle("ESP_Name", { Text = "显示头顶名称", Default = true,
-    Callback = function(v) ESP_Config.ShowName = v end })
-espDisplayGroup:AddToggle("ESP_Health", { Text = "显示血量", Default = true,
-    Callback = function(v) ESP_Config.ShowHealth = v end })
-espDisplayGroup:AddToggle("ESP_Distance", { Text = "显示距离", Default = true,
-    Callback = function(v) ESP_Config.ShowDistance = v end })
-espDisplayGroup:AddToggle("ESP_Box", { Text = "方框透视", Default = true,
-    Callback = function(v) ESP_Config.ShowBox = v end })
-espDisplayGroup:AddToggle("ESP_Tracer", { Text = "射线透视", Default = false,
-    Callback = function(v) ESP_Config.ShowTracer = v end })
-espDisplayGroup:AddToggle("ESP_Skeleton", { Text = "骨架透视", Default = false,
-    Callback = function(v) ESP_Config.ShowSkeleton = v end })
-espDisplayGroup:AddToggle("ESP_Weapon", { Text = "武器显示", Default = false,
-    Callback = function(v) ESP_Config.ShowWeapon = v end })
-espDisplayGroup:AddToggle("ESP_Wall", { Text = "穿墙ESP", Default = false,
-    Callback = function(v) ESP_Config.WallHack = v end })
-espDisplayGroup:AddToggle("ESP_Team", { Text = "区分队友颜色", Default = false,
-    Callback = function(v) ESP_Config.TeamCheck = v end })
-
-local espSetGroup = Tabs.ESP:AddRightGroupbox("ESP 参数")
-
-espSetGroup:AddSlider("ESP_MaxDist", {
-    Text = "ESP最大可视距离",
-    Default = 350, Min = 50, Max = 1000, Rounding = 0,
-    Callback = function(val) ESP_Config.MaxDrawDistance = val end,
-})
-
-espSetGroup:AddSlider("ESP_BoxThick", {
-    Text = "方框线条粗细",
-    Default = 1, Min = 1, Max = 5, Rounding = 0,
-    Callback = function(v) ESP_Config.BoxThickness = v end,
-})
-
-espSetGroup:AddSlider("ESP_TracerThick", {
-    Text = "射线线条粗细",
-    Default = 1, Min = 1, Max = 10, Rounding = 0,
-    Callback = function(v) ESP_Config.TracerThickness = v end,
-})
-
 -- ==================== ESP2 页 ====================
 local P_FONT_SIZE = 16
 local P_FONT_NAME = Drawing.Fonts.Monospace
@@ -3794,7 +4168,6 @@ local function SetupFarmFull()
         return
     end
 
-
     -- ========================================
     local GIZMO_NAME_MAP = {
         ["GasStationSafe"] = "加油站保险箱",
@@ -3809,9 +4182,10 @@ local function SetupFarmFull()
         ["MilitaryChest"]  = "军事箱",
         ["PelicanCase"]    = "箱",
         ["WorldSafe"]      = "世界保险箱",
-        ["PC Block"]       = "我不知道",
+        ["PC Block"]       = "PC机箱",
         ["WorldItemSpawn"] = "物品刷新点",
-        ["Break Glass"]    = "打碎玻璃",
+        ["Break Glass"]    = "电锯打玻璃",
+        ["AutoBreakJewel"] = "自动打玻璃（无需电锯）", -- ⭐ 新加
     }
 
     -- ========================================
@@ -3990,8 +4364,47 @@ local function SetupFarmFull()
         return false
     end
 
+    -- ⭐ 新增：自动远程打玻璃（无需电锯，使用远程名 breakJewelCase）
+    local lastAutoBreakTime = 0
+    local function tryAutoBreakJewel()
+        local now = tick()
+        if now - lastAutoBreakTime < 0.5 then return end -- 防止请求过快
+
+        local myChar = LocalPlayer.Character
+        if not myChar then return end
+        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+
+        if not ClientProps or type(ClientProps.worldPropsById) ~= "table" then return end
+
+        local bestGuid = nil
+        local bestDist = math.huge
+
+        for guid, prop in pairs(ClientProps.worldPropsById) do
+            if type(prop) == "table" and prop.name == "JewelSpawn" and not prop.isShattered then
+                local pos = (prop.GetPosition and prop:GetPosition())
+                    or (prop.model and prop.model.PrimaryPart and prop.model.PrimaryPart.Position)
+                if pos then
+                    local d = (myHRP.Position - pos).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestGuid = guid
+                    end
+                end
+            end
+        end
+
+        if bestGuid then
+            lastAutoBreakTime = now
+            pcall(function()
+                fireServer("breakJewelCase", bestGuid)
+            end)
+            print("[自动打玻璃] 已远程打破最近玻璃柜，距离: " .. math.floor(bestDist) .. " 格")
+        end
+    end
+
     -- ========================================
-    -- 配置（含 PelicanCase、PC Block）
+    -- 配置
     -- ========================================
     local FarmConfig = {
         Enabled = false,
@@ -4004,25 +4417,28 @@ local function SetupFarmFull()
         Options = {
             "GasStationSafe", "ATM", "Register", "Lootable", "WorldItem",
             "WorldBag", "MainCashPile", "CashPallet", "Cash", "MilitaryChest",
-            "PelicanCase", "WorldSafe", "PC Block", "WorldItemSpawn",
+            "PelicanCase", "WorldSafe", "PC Block", "WorldItemSpawn", "AutoBreakJewel",
         },
         SellPos = Vector3.new(-2826, 37, 1738),
         BagFullThreshold = 0.8,
     }
 
-local FARM_SPOTS = {
-    CFrame.new(-386.13,   617.44, -1193.07),
-    CFrame.new(-3139,     36,      1638),
-    CFrame.new(212,       39.7,   -2917.9),
-    CFrame.new(-1677.8,   181,     3336.4),
-    CFrame.new(-490.5,    128,    -1677.2),
-    CFrame.new(-940.7,    73.9,   -1541.6),
-    CFrame.new(-484.2,    44.1,   -1956.6),
-    CFrame.new(1873.72,   171.63,  -537.64),
-    CFrame.new(-1394.89,  272.13,   3204.58),
-    CFrame.new(-1389.94,  272.13,   3188.34),
-    CFrame.new(-3185.39,  36.72,    1715.80),
-}
+    local FARM_SPOTS = {
+        CFrame.new(-616.021240234375, 42.37424087524414, -2855.274169921875),
+        CFrame.new(-517.3259887695312, 65.89241027832031, -2836.2841796875),
+        CFrame.new(-571.81005859375, 42.467185974121094, -2864.800048828125),
+        CFrame.new(-386.13,   617.44, -1193.07),
+        CFrame.new(-3139,     36,      1638),
+        CFrame.new(212,       39.7,   -2917.9),
+        CFrame.new(-1677.8,   181,     3336.4),
+        CFrame.new(-490.5,    128,    -1677.2),
+        CFrame.new(-940.7,    73.9,   -1541.6),
+        CFrame.new(-484.2,    44.1,   -1956.6),
+        CFrame.new(1873.72,   171.63,  -537.64),
+        CFrame.new(-1394.89,  272.13,   3204.58),
+        CFrame.new(-1389.94,  272.13,   3188.34),
+        CFrame.new(-3185.39,  36.72,    1715.80),
+    }
 
     local function matchesOption(g, options)
         for _, opt in ipairs(options) do
@@ -4032,104 +4448,106 @@ local FARM_SPOTS = {
         return false
     end
 
+    local function tweenTo(hrp, duration, targetCF)
+        if not hrp or not hrp.Parent then return end
+        if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then return end
 
-local function tweenTo(hrp, duration, targetCF)
-    if not hrp or not hrp.Parent then return end
-    if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then return end
+        local tw = TweenService:Create(
+            hrp,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear),
+            { CFrame = targetCF }
+        )
+        tw:Play()
 
-    local tw = TweenService:Create(
-        hrp,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-        { CFrame = targetCF }
-    )
-    tw:Play()
-
-    while tw.PlaybackState == Enum.PlaybackState.Playing do
-        if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then
-            tw:Cancel()
-            return
-        end
-        task.wait(0.05)
-    end
-end
-    -- ========================================
-    -- 农场光环 主循环（加速：0.03 → 0.02）
-    -- ========================================
-local function tickFarmAura()
-    local hrp = getHRP()
-    if not hrp then return end
-
-    local hasBuzz = findBuzzsaw() ~= nil
-    for _, opt in ipairs(FarmConfig.Options) do
-        if opt == "Break Glass" and hasBuzz then
-            breakGlass(hrp)
-            break
+        while tw.PlaybackState == Enum.PlaybackState.Playing do
+            if not FarmConfig.Enabled and not AutoFarmConfig.Enabled then
+                tw:Cancel()
+                return
+            end
+            task.wait(0.05)
         end
     end
 
-    local gizmos = getGizmos(hrp)
-    local cashList, otherList = {}, {}
-    for _, g in ipairs(gizmos) do
-        if g.dist < FarmConfig.Range and canInteract(g) and matchesOption(g, FarmConfig.Options) then
-            if isCash(g) then
-                table.insert(cashList, g)
-            else
-                table.insert(otherList, g)
+    -- ========================================
+    -- 农场光环 主循环
+    -- ========================================
+    local function tickFarmAura()
+        local hrp = getHRP()
+        if not hrp then return end
+
+        -- ⭐ 检查是否开启自动打玻璃
+        if table.find(FarmConfig.Options, "AutoBreakJewel") then
+            tryAutoBreakJewel()
+        end
+
+        local hasBuzz = findBuzzsaw() ~= nil
+        for _, opt in ipairs(FarmConfig.Options) do
+            if opt == "Break Glass" and hasBuzz then
+                breakGlass(hrp)
+                break
             end
         end
-    end
-    for i = 1, #cashList do interact(cashList[i]) end
-    table.sort(otherList, function(a, b) return a.dist < b.dist end)
-    for i = 1, math.min(3, #otherList) do interact(otherList[i]) end
-end
 
-task.spawn(function()
-    while true do
-        if FarmConfig.Enabled then
-            pcall(tickFarmAura)
+        local gizmos = getGizmos(hrp)
+        local cashList, otherList = {}, {}
+        for _, g in ipairs(gizmos) do
+            if g.dist < FarmConfig.Range and canInteract(g) and matchesOption(g, FarmConfig.Options) then
+                if isCash(g) then
+                    table.insert(cashList, g)
+                else
+                    table.insert(otherList, g)
+                end
+            end
         end
-        task.wait(0.03)
+        for i = 1, #cashList do interact(cashList[i]) end
+        table.sort(otherList, function(a, b) return a.dist < b.dist end)
+        for i = 1, math.min(3, #otherList) do interact(otherList[i]) end
     end
-end)
+
+    task.spawn(function()
+        while true do
+            if FarmConfig.Enabled then
+                pcall(tickFarmAura)
+            end
+            task.wait(0.03)
+        end
+    end)
+
     -- ========================================
     -- 背包 / 出售
     -- ========================================
- local function getBagFullPercent()
-    local ok2, data = pcall(function()
-        return require(ReplicatedStorage.Devv).load("ClientData").Get()
-    end)
-    if not ok2 or type(data) ~= "table" or type(data.bag) ~= "table" then return 0 end
+    local function getBagFullPercent()
+        local ok2, data = pcall(function()
+            return require(ReplicatedStorage.Devv).load("ClientData").Get()
+        end)
+        if not ok2 or type(data) ~= "table" or type(data.bag) ~= "table" then return 0 end
 
-    local totalWeight = 0
-    if type(data.bag.contents) == "table" then
-        local Objects = require(ReplicatedStorage.Shared.Wanted.Indicies.Objects)
-        for _, itemName in pairs(data.bag.contents) do
-            if type(itemName) == "string" then
-                local w = Objects.GetDataProperty(itemName, "weight")
-                if type(w) == "number" then totalWeight += w end
+        local totalWeight = 0
+        if type(data.bag.contents) == "table" then
+            local Objects = require(ReplicatedStorage.Shared.Wanted.Indicies.Objects)
+            for _, itemName in pairs(data.bag.contents) do
+                if type(itemName) == "string" then
+                    local w = Objects.GetDataProperty(itemName, "weight")
+                    if type(w) == "number" then totalWeight += w end
+                end
             end
         end
+
+        local UpgradeUtil = require(ReplicatedStorage.Shared.Wanted.Modules.UpgradeUtil)
+        local cap = UpgradeUtil.GetBagCapacity()
+        if type(cap) ~= "number" or cap <= 0 then
+            cap = type(data.bag.capacity) == "number" and data.bag.capacity or 1
+        end
+        return totalWeight / cap
     end
 
-    local UpgradeUtil = require(ReplicatedStorage.Shared.Wanted.Modules.UpgradeUtil)
-    local cap = UpgradeUtil.GetBagCapacity()
-    if type(cap) ~= "number" or cap <= 0 then
-        cap = type(data.bag.capacity) == "number" and data.bag.capacity or 1
+    local function isBagFull(threshold)
+        threshold = threshold or 0.8
+        if LocalPlayer:GetAttribute("isBagFull") then return true end
+        if not LocalPlayer:GetAttribute("hasLootBag") then return false end
+        return getBagFullPercent() >= threshold
     end
-    return totalWeight / cap
-end
 
-local function isBagFull(threshold)
-    threshold = threshold or 0.8
-    if LocalPlayer:GetAttribute("isBagFull") then return true end
-    if not LocalPlayer:GetAttribute("hasLootBag") then return false end
-    return getBagFullPercent() >= threshold
-end
-
-
-    -- ========================================
-    -- sellLoot（加速：/100 → /150）
-    -- ========================================
     local function sellLoot()
         local hrp = getHRP()
         if not hrp then return false end
@@ -4138,7 +4556,7 @@ end
         hrp = getHRP()
         if not hrp then return true end
         local dest = Vector3.new(AutoFarmConfig.SellPos.X, hrp.Position.Y, AutoFarmConfig.SellPos.Z)
-        tweenTo(hrp, (hrp.Position - dest).Magnitude / 150, CFrame.new(dest))   -- 加速：原 /100
+        tweenTo(hrp, (hrp.Position - dest).Magnitude / 150, CFrame.new(dest))
         if not AutoFarmConfig.Enabled then return true end
         hrp = getHRP()
         if not hrp then return true end
@@ -4148,68 +4566,73 @@ end
         return true
     end
 
-local autoFarmRunning = false
-local function startAutoFarm()
-    if autoFarmRunning then return end
-    autoFarmRunning = true
-    task.spawn(function()
-        while AutoFarmConfig.Enabled do
-            pcall(function()
-                local hrp = getHRP()
-                if not hrp or not getHum() then return end
+    local autoFarmRunning = false
+    local currentSpotIndex = 1
 
-                if isBagFull(AutoFarmConfig.BagFullThreshold) then
-                    sellLoot()
-                    return
-                end
+    local function startAutoFarm()
+        if autoFarmRunning then return end
+        autoFarmRunning = true
+        task.spawn(function()
+            while AutoFarmConfig.Enabled do
+                pcall(function()
+                    local hrp = getHRP()
+                    if not hrp or not getHum() then return end
 
-                -- 随机挑一个刷钱点
-                local spot = FARM_SPOTS[math.random(1, #FARM_SPOTS)]
-
-                -- 【关键修复】直接从当前位置 tween 到目标点（含目标 Y 高度）
-                -- 不再使用 hrp.CFrame + Vector3.new(0, 150, 0) 这种叠加写法
-                local dist = (hrp.Position - spot.Position).Magnitude
-                tweenTo(hrp, math.max(dist / 100, 0.3), spot)
-                if not AutoFarmConfig.Enabled then return end
-
-                local hasBuzz = findBuzzsaw() ~= nil
-                local gizmos = getGizmos(getHRP())
-                local targets = {}
-                for _, g in ipairs(gizmos) do
-                    if canInteract(g) and matchesOption(g, AutoFarmConfig.Options) then
-                        table.insert(targets, g)
+                    if isBagFull(AutoFarmConfig.BagFullThreshold) then
+                        sellLoot()
+                        return
                     end
-                end
-                table.sort(targets, function(a, b) return a.dist < b.dist end)
 
-                for _, g in ipairs(targets) do
+                    -- ⭐ 检查是否开启自动打玻璃
+                    if table.find(AutoFarmConfig.Options, "AutoBreakJewel") then
+                        tryAutoBreakJewel()
+                    end
+
+                    local spot = FARM_SPOTS[currentSpotIndex]
+                    currentSpotIndex = currentSpotIndex + 1
+                    if currentSpotIndex > #FARM_SPOTS then
+                        currentSpotIndex = 1
+                    end
+
+                    local dist = (hrp.Position - spot.Position).Magnitude
+                    tweenTo(hrp, math.max(dist / 100, 0.3), spot)
                     if not AutoFarmConfig.Enabled then return end
-                    if isBagFull(AutoFarmConfig.BagFullThreshold) then sellLoot(); return end
 
-                    hrp = getHRP()
-                    if not hrp then return end
-                    local targetCF = g.cframe and (g.cframe * CFrame.new(0, 1, -1)) or CFrame.new(g.position)
-                    tweenTo(hrp, math.max((hrp.Position - targetCF.Position).Magnitude / 60, 0.05), targetCF)
-
-                    if g.isJewelry and hasBuzz then
-                        breakGlass(hrp)
-                        task.wait(0.35)
+                    local hasBuzz = findBuzzsaw() ~= nil
+                    local gizmos = getGizmos(getHRP())
+                    local targets = {}
+                    for _, g in ipairs(gizmos) do
+                        if canInteract(g) and matchesOption(g, AutoFarmConfig.Options) then
+                            table.insert(targets, g)
+                        end
                     end
-                    interact(g)
+                    table.sort(targets, function(a, b) return a.dist < b.dist end)
 
-                    local waitTime = (g.gizmoType == "ATM" or g.gizmoType == "Register") and 2.5 or 0.6
-                    task.wait(waitTime)
-                end
-            end)
-            task.wait(0.1)
-        end
-        autoFarmRunning = false
-    end)
-end
+                    for _, g in ipairs(targets) do
+                        if not AutoFarmConfig.Enabled then return end
+                        if isBagFull(AutoFarmConfig.BagFullThreshold) then sellLoot(); return end
 
-local function stopAutoFarm()
-    AutoFarmConfig.Enabled = false
-end
+                        hrp = getHRP()
+                        if not hrp then return end
+                        local targetCF = g.cframe and (g.cframe * CFrame.new(0, 1, -1)) or CFrame.new(g.position)
+                        tweenTo(hrp, math.max((hrp.Position - targetCF.Position).Magnitude / 60, 0.05), targetCF)
+
+                        if g.isJewelry and hasBuzz then
+                            breakGlass(hrp)
+                            task.wait(0.35)
+                        end
+                        interact(g)
+
+                        local waitTime = (g.gizmoType == "ATM" or g.gizmoType == "Register") and 2.5 or 0.6
+                        task.wait(waitTime)
+                    end
+                end)
+                task.wait(0.1)
+            end
+            autoFarmRunning = false
+        end)
+    end
+
     -- ========================================
     -- UI：Obsidian 格式
     -- ========================================
@@ -4235,25 +4658,34 @@ end
         Callback = function(v) FarmConfig.Range = v end,
     })
 
-    -- 交互类型（含鹈鹕箱、PC 方块）
+    -- 交互类型（含鹈鹕箱、PC 方块、自动打玻璃）
     local optionListFarm = {
         "GasStationSafe", "ATM", "Register", "Lootable", "WorldItem",
         "WorldBag", "MainCashPile", "CashPallet", "Cash", "MilitaryChest",
-        "PelicanCase", "WorldSafe", "PC Block", "WorldItemSpawn", "Break Glass",
+        "PelicanCase", "WorldSafe", "PC Block", "WorldItemSpawn", "AutoBreakJewel", -- ⭐ 自动打玻璃在这里！
+        "Break Glass",
     }
     for _, opt in ipairs(optionListFarm) do
         lcRight:AddToggle("Farm_" .. opt:gsub("[^%w]", "_"), {
             Text = GIZMO_NAME_MAP[opt] or opt,
-            Default = false,
+            Default = (opt == "AutoBreakJewel"), -- 默认开启自动打玻璃
             Callback = function(v)
                 if v then
                     if not table.find(FarmConfig.Options, opt) then
                         table.insert(FarmConfig.Options, opt)
                     end
+                    if not table.find(AutoFarmConfig.Options, opt) then
+                        table.insert(AutoFarmConfig.Options, opt)
+                    end
                 else
                     for i = #FarmConfig.Options, 1, -1 do
                         if FarmConfig.Options[i] == opt then
                             table.remove(FarmConfig.Options, i)
+                        end
+                    end
+                    for i = #AutoFarmConfig.Options, 1, -1 do
+                        if AutoFarmConfig.Options[i] == opt then
+                            table.remove(AutoFarmConfig.Options, i)
                         end
                     end
                 end
@@ -4426,7 +4858,7 @@ rsaoGroup:AddButton({
 })
 
 -- ==================== 娱乐功能：外部脚本面板（右栏） ====================
-local rsaoExternal = Tabs.rsao:AddRightGroupbox("环境、其他")
+local rsaoExternal = Tabs.rsao:AddRightGroupbox("环境、大肥鱼")
 
 rsaoExternal:AddButton({
     Text = "创造与魔法",
@@ -4447,7 +4879,15 @@ rsaoExternal:AddButton({
         end)
     end,
 })
-
+rsaoExternal:AddButton({
+    Text = "大肥鱼小宠物",
+    Tooltip = "DeepSeek",
+    Func = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/%E5%8A%A8%E7%94%BB%E5%BC%B9%E8%B7%B3.lua"))()
+        end)
+    end,
+})
 -- ==================== 购买页 ====================
 local gmGroup = Tabs.gm:AddLeftGroupbox("购买（需在建筑范围内）")
 
@@ -4689,9 +5129,6 @@ SaveManager:BuildConfigSection(Tabs.UI)
 ThemeManager:ApplyToTab(Tabs.UI)
 SaveManager:LoadAutoloadConfig()
 
--- ==================== 初始化 ====================
-Library:Init()
-
 -- ==================== 完成提示 ====================
 Library:Notify({
     Title = "加载完成",
@@ -4700,3 +5137,34 @@ Library:Notify({
 })
 
 Window:SelectTab(1)
+
+-- Roblox 防挂机（最简版）
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local LocalPlayer = Players.LocalPlayer
+
+-- 阻止官方 20 分钟断开
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- Roblox 防挂机（不跳动版）
+local VirtualUser = game:GetService("VirtualUser")
+
+-- ① 阻止官方 20 分钟 Idle 断开
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- ② 定时模拟点击（保持客户端活跃）
+task.spawn(function()
+    while true do
+        task.wait(60)
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end
+end)
