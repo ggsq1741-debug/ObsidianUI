@@ -223,14 +223,40 @@ local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
 ggLeft:AddDivider()
 ggLeft:AddLabel("添加手动击打玻璃柜感谢汤姆猫赞助😘")
-ggLeft:AddLabel("售后1125514261")
+ggLeft:AddLabel("售后1109337389🟢")
+
+-- ⭐ 复制售后群（放在售后信息下方，醒目位置）
+ggLeft:AddButton({
+    Text = "🟢复制售后群🟢",
+    Func = function()
+        if setclipboard then
+            setclipboard("1109337389")
+            Library:Notify({Title = "已复制", Text = "纸飞机：@you25801", Duration = 3})
+        else
+            Library:Notify({Title = "提示", Text = "纸飞机：@you25801", Duration = 5})
+        end
+    end,
+})
+
+ggLeft:AddButton({
+    Text = "🟢复制dc🟢",
+    Func = function()
+        if setclipboard then
+            setclipboard("https://discord.gg/rEAd5RdNe")
+            Library:Notify({Title = "已复制", Text = "纸飞机：@you25801", Duration = 3})
+        else
+            Library:Notify({Title = "提示", Text = "纸飞机：@you25801", Duration = 5})
+        end
+    end,
+})
 ggLeft:AddDivider()
 ggLeft:AddLabel("更新内容：")
 ggLeft:AddLabel("• 新版本")
 ggLeft:AddLabel("• 由于前面光环等功能失效现已修复")
-ggLeft:AddLabel("• 新增刷钱自动化农场100%")
+ggLeft:AddLabel("• 2026/10/13/优化辅助瞄准")
 ggLeft:AddDivider()
 
+-- ==================== 右侧：使用说明 ====================
 ggRight:AddLabel("使用提示")
 ggRight:AddDivider()
 ggRight:AddLabel("1. 跑步拉回时")
@@ -246,17 +272,6 @@ ggRight:AddLabel("4. 子弹追踪问题")
 ggRight:AddLabel("尽量拿自动步枪")
 
 ggRight:AddDivider()
-ggRight:AddButton({
-    Text = "复制售后群",
-    Func = function()
-        if setclipboard then
-            setclipboard("1125514261")
-            Library:Notify({Title = "已复制", Text = "纸飞机：@you25801", Duration = 3})
-        else
-            Library:Notify({Title = "提示", Text = "纸飞机：@you25801", Duration = 5})
-        end
-    end,
-})
 
 ggRight:AddButton({
     Text = "重新显示公告",
@@ -2128,9 +2143,15 @@ Players.PlayerRemoving:Connect(function(plr)
     end)
 end)
 -- ============================================
+-- 辅助瞄准（Obsidian 格式）
+-- + 队伍阵营过滤 + 掩体检测
+-- ============================================
 local function SetupAimAssist()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local UserInputService  = game:GetService("UserInputService")
+    local Players           = game:GetService("Players")
+    local LocalPlayer       = Players.LocalPlayer
+    local Camera            = workspace.CurrentCamera
 
     if not Tabs or not Tabs.fz then
         warn("[辅助瞄准] Tabs.fz 不存在，请先创建 fz 标签页")
@@ -2161,13 +2182,16 @@ local function SetupAimAssist()
     -- 状态
     -- ========================================
     local AA = {
-        Enabled     = false,
-        Part        = "Body",
-        SpeedX      = 2.7,
-        SpeedY      = 1,
-        PredictionX = 2.8,
-        PredictionY = 2.6,
-        Range       = 300,
+        Enabled        = false,
+        Part           = "Body",
+        SpeedX         = 2.7,
+        SpeedY         = 1,
+        PredictionX    = 2.8,
+        PredictionY    = 2.6,
+        Range          = 300,
+        IgnoreTeammate = true,
+        CampFilter     = "全部",
+        WallCheck      = true,
     }
     local originalAimStep = AimAssistModule.Step
 
@@ -2188,6 +2212,77 @@ local function SetupAimAssist()
         return list
     end
 
+    -- ========================================
+    -- 阵营 / 队伍判定
+    -- ========================================
+    local function getCamp(plr)
+        if not plr then return nil end
+        local team = plr:GetAttribute("currentTeam")
+        if type(team) == "string" then return team end
+        if plr.Team then return plr.Team.Name end
+        return nil
+    end
+
+    local function getMyCamp() return getCamp(LocalPlayer) end
+
+    local function isTeammate(plr)
+        if plr == LocalPlayer then return true end
+        local myCamp = getMyCamp()
+        local pCamp  = getCamp(plr)
+        if myCamp == nil or pCamp == nil then
+            return plr.Team ~= nil and plr.Team == LocalPlayer.Team
+        end
+        return myCamp == pCamp
+    end
+
+    -- ========================================
+    -- 掩体检测
+    -- ========================================
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.IgnoreWater = true
+
+    local function checkWall(targetPart)
+        if not targetPart or not targetPart.Parent then return true end
+        local char = getChar()
+        if not char then return true end
+
+        local origin    = Camera.CFrame.Position
+        local targetPos = targetPart.Position
+        local dir       = targetPos - origin
+        local dist      = dir.Magnitude
+        if dist < 0.1 then return false end
+
+        rayParams.FilterDescendantsInstances = { char, Camera }
+        local result = workspace:Raycast(origin, dir, rayParams)
+        if not result then return false end
+
+        if result.Instance and result.Instance:IsDescendantOf(targetPart.Parent) then
+            return false
+        end
+        if (result.Position - targetPos).Magnitude <= 0.6 then
+            return false
+        end
+        return true
+    end
+
+    -- 指定阵营时不再受"忽略队友"二次过滤
+    local function isAllowedTarget(plr)
+        if AA.CampFilter ~= "全部" then
+            local camp = getCamp(plr)
+            if AA.CampFilter == "仅警察" and camp ~= "police"    then return false end
+            if AA.CampFilter == "仅帮派" and camp ~= "syndicate" then return false end
+            if AA.CampFilter == "仅平民" and camp ~= "civilian"  then return false end
+            return true
+        else
+            if AA.IgnoreTeammate and isTeammate(plr) then return false end
+            return true
+        end
+    end
+
+    -- ========================================
+    -- 同步游戏辅助灵敏度
+    -- ========================================
     local function setAssistSensitivity(v)
         pcall(function()
             local setting = SettingsData.settingDataByName
@@ -2207,6 +2302,9 @@ local function SetupAimAssist()
         return m.X, m.Y
     end
 
+    -- ========================================
+    -- 瞄准核心
+    -- ========================================
     local function aimStep(self, dt)
         local tool = self and self.tool
         local ts = tool and tool.toolState
@@ -2225,42 +2323,47 @@ local function SetupAimAssist()
         local bestScore, bestYaw, bestPitch = math.huge, nil, nil
 
         for _, plr in ipairs(getPlayerList()) do
-            local pchar = plr.Character
-            local phum  = pchar and pchar:FindFirstChildOfClass("Humanoid")
-            local phrp  = pchar and pchar:FindFirstChild("HumanoidRootPart")
-            local phead = pchar and pchar:FindFirstChild("Head")
-            if pchar and phum and phum.Health > 0 and phrp then
-                local target
-                if AA.Part == "Head" then
-                    target = phead or phrp
-                else
-                    target = pchar:FindFirstChild("UpperTorso")
-                        or pchar:FindFirstChild("Torso")
-                        or phrp
-                end
+            if isAllowedTarget(plr) then
+                local pchar = plr.Character
+                local phum  = pchar and pchar:FindFirstChildOfClass("Humanoid")
+                local phrp  = pchar and pchar:FindFirstChild("HumanoidRootPart")
+                local phead = pchar and pchar:FindFirstChild("Head")
+                if pchar and phum and phum.Health > 0 and phrp then
+                    local target
+                    if AA.Part == "Head" then
+                        target = phead or phrp
+                    else
+                        target = pchar:FindFirstChild("UpperTorso")
+                            or pchar:FindFirstChild("Torso")
+                            or phrp
+                    end
 
-                local dist = (hrp.Position - target.Position).Magnitude
-                if dist <= AA.Range then
-                    local predict = target.Position
-                        + (target.AssemblyLinearVelocity or Vector3.zero)
-                            * (AA.PredictionX * 0.01)
-                    local rel = cFrame:PointToObjectSpace(predict)
-                    local mag = rel.Magnitude
-                    if mag > 0.35 then
-                        local inv = 1 / mag
-                        local fwd = -rel.Z * inv
-                        if fwd > 0.02 then
-                            local sp = cam:WorldToViewportPoint(predict)
-                            local dx = sp.X - sx
-                            local dy = sp.Y - sy
-                            local pixDist = math.sqrt(dx * dx + dy * dy)
-                            local score = (pixDist / screenHalf) ^ 2 * 1.55
-                                + (dist / math.max(1, AA.Range)) ^ 2 * 0.35
-                            if score < bestScore then
-                                local yaw = math.atan2(rel.X * inv, fwd)
-                                local pitch = math.atan2(rel.Y * inv, fwd)
-                                bestYaw, bestPitch = math.deg(yaw), math.deg(pitch)
-                                bestScore = score
+                    local blocked = AA.WallCheck and checkWall(target) or false
+                    if not blocked then
+                        local dist = (hrp.Position - target.Position).Magnitude
+                        if dist <= AA.Range then
+                            local predict = target.Position
+                                + (target.AssemblyLinearVelocity or Vector3.zero)
+                                    * (AA.PredictionX * 0.01)
+                            local rel = cFrame:PointToObjectSpace(predict)
+                            local mag = rel.Magnitude
+                            if mag > 0.35 then
+                                local inv = 1 / mag
+                                local fwd = -rel.Z * inv
+                                if fwd > 0.02 then
+                                    local sp = cam:WorldToViewportPoint(predict)
+                                    local dx = sp.X - sx
+                                    local dy = sp.Y - sy
+                                    local pixDist = math.sqrt(dx * dx + dy * dy)
+                                    local score = (pixDist / screenHalf) ^ 2 * 1.55
+                                        + (dist / math.max(1, AA.Range)) ^ 2 * 0.35
+                                    if score < bestScore then
+                                        local yaw = math.atan2(rel.X * inv, fwd)
+                                        local pitch = math.atan2(rel.Y * inv, fwd)
+                                        bestYaw, bestPitch = math.deg(yaw), math.deg(pitch)
+                                        bestScore = score
+                                    end
+                                end
                             end
                         end
                     end
@@ -2284,21 +2387,28 @@ local function SetupAimAssist()
     end
 
     -- ========================================
-    -- UI：Obsidian 格式
+    -- Obsidian UI 控件（左：功能 / 右：参数）
     -- ========================================
-    local aaLeft  = Tabs.fz:AddLeftGroupbox("辅助瞄准")
-    local aaRight = Tabs.fz:AddRightGroupbox("参数")
+    local aaLeft  = Tabs.fz:AddLeftGroupbox("辅助瞄准 · 功能")
+    local aaRight = Tabs.fz:AddRightGroupbox("辅助瞄准 · 参数")
+
+    -- ================================================
+    -- 左：功能开关 + 部位 + 阵营过滤 + 掩体检测
+    -- ================================================
 
     -- 主开关
     aaLeft:AddToggle("AA_Enable", {
         Text = "启用辅助瞄准",
         Default = false,
+        Tooltip = "开启后准星自动吸附敌人",
         Callback = function(v)
             AA.Enabled = v
             if v then
                 AimAssistModule.Step = aimStep
+                Library:Notify({ Title = "辅助瞄准", Text = "已开启", Duration = 2 })
             else
                 AimAssistModule.Step = originalAimStep
+                Library:Notify({ Title = "辅助瞄准", Text = "已关闭", Duration = 2 })
             end
         end,
     })
@@ -2312,7 +2422,46 @@ local function SetupAimAssist()
         Callback = function(v) AA.Part = v end,
     })
 
-    -- 水平速度
+    aaLeft:AddDivider()
+
+    -- 忽略队友
+    aaLeft:AddToggle("AA_IgnoreTeam", {
+        Text = "忽略队友（仅「全部」阵营时生效）",
+        Default = true,
+        Tooltip = "选了具体阵营后此开关自动失效",
+        Callback = function(v) AA.IgnoreTeammate = v end,
+    })
+
+    -- 指定阵营
+    aaLeft:AddDropdown("AA_CampFilter", {
+        Text = "只吸附指定阵营",
+        Values = { "全部", "仅警察", "仅帮派", "仅平民" },
+        Default = "全部",
+        Multi = false,
+        Callback = function(v) AA.CampFilter = v end,
+    })
+
+    aaLeft:AddDivider()
+
+    -- 掩体检测
+    aaLeft:AddToggle("AA_WallCheck", {
+        Text = "启用掩体检测",
+        Default = true,
+        Tooltip = "被墙 / 掩体挡住的敌人不吸附",
+        Callback = function(v)
+            AA.WallCheck = v
+            Library:Notify({
+                Title = "掩体检测",
+                Text = v and "已开启" or "已关闭",
+                Duration = 2,
+            })
+        end,
+    })
+
+    -- ================================================
+    -- 右：全部参数调节
+    -- ================================================
+
     aaRight:AddSlider("AA_SpeedX", {
         Text = "水平速度",
         Min = 0.1, Max = 5, Default = 2.7,
@@ -2323,7 +2472,6 @@ local function SetupAimAssist()
         end,
     })
 
-    -- 垂直速度
     aaRight:AddSlider("AA_SpeedY", {
         Text = "垂直速度",
         Min = 0.1, Max = 5, Default = 1,
@@ -2331,7 +2479,6 @@ local function SetupAimAssist()
         Callback = function(v) AA.SpeedY = v end,
     })
 
-    -- 水平预判
     aaRight:AddSlider("AA_PredictionX", {
         Text = "水平预判",
         Min = 0, Max = 7, Default = 2.8,
@@ -2339,7 +2486,6 @@ local function SetupAimAssist()
         Callback = function(v) AA.PredictionX = v end,
     })
 
-    -- 垂直预判
     aaRight:AddSlider("AA_PredictionY", {
         Text = "垂直预判",
         Min = 0, Max = 7, Default = 2.6,
@@ -2347,7 +2493,6 @@ local function SetupAimAssist()
         Callback = function(v) AA.PredictionY = v end,
     })
 
-    -- 范围
     aaRight:AddSlider("AA_Range", {
         Text = "范围",
         Min = 10, Max = 1000, Default = 300,
@@ -2355,16 +2500,17 @@ local function SetupAimAssist()
         Callback = function(v) AA.Range = v end,
     })
 
-    --Library:Notify({ Title = "辅助瞄准", Text = "已加载到 fz 标签页", Duration = 4 })
+    print("[辅助瞄准] 已加载到 Tabs.fz（功能左侧 / 参数右侧）")
 end
 
+-- ============================================
+-- 调用初始化
+-- ============================================
 local aaOk, aaErr = pcall(SetupAimAssist)
 if not aaOk then
     warn("[辅助瞄准] 初始化失败: " .. tostring(aaErr))
-    --Library:Notify({ Title = "辅助瞄准", Text = "加载失败: " .. tostring(aaErr), Duration = 8 })
 end
--- ==================== 光环设置页 ====================
--- ==================== 光环设置页（使用真实函数名，换服不换数字） ====================
+-- ==================== 光环设置页====================
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer       = Players.LocalPlayer
@@ -2379,10 +2525,10 @@ local Network    = DevvModule.load("Network")
 local FireServer = Network.FireServer
 
 -- ⭐ 抓包验证过的真实动作名
-local STOMP_ACTION  = "finish"   -- 踩踏
-local ARREST_ACTION = "arrest"   -- 逮捕
-local GRAB_ACTION   = "grab"     -- 抓取
-local REVIVE_ACTION = "revive"   -- 救援
+local STOMP_ACTION  = "finish"   
+local ARREST_ACTION = "arrest"   
+local GRAB_ACTION   = "grab"     
+local REVIVE_ACTION = "revive"   
 
 -- ==================== 配置 ====================
 local AuraConfig = {
@@ -2869,7 +3015,7 @@ local sa_FOVStroke = Instance.new("UIStroke", sa_FOVFrame)
 sa_FOVStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 sa_FOVStroke.Thickness = 1
 sa_FOVStroke.Transparency = 0.5
-sa_FOVStroke.Color = Color3.fromRGB(54, 57, 241)
+sa_FOVStroke.Color = Color3.fromRGB(255, 0, 0)
 
 local sa_FOVCorner = Instance.new("UICorner", sa_FOVFrame)
 sa_FOVCorner.CornerRadius = UDim.new(1, 0)
