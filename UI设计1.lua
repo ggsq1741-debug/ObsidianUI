@@ -1,4 +1,4 @@
--- ==================== 全局屏蔽日志（兼容版） ====================
+-- =================== 全局屏蔽日志（兼容版） ====================
 do
     local ok1 = pcall(function() print = function() end end)
     local ok2 = pcall(function() warn = function() end end)
@@ -196,6 +196,7 @@ Window.BackgroundTransparency = 0.9
 local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
+    zx   = Window:AddTab("准心设置", "rbxassetid://7733666258"),
     yy   = Window:AddTab("音乐 Music", "rbxassetid://7734020554"),
     sf   = Window:AddTab("甩飞", "rbxassetid://7733799371"),
     fc   = Window:AddTab("亚洲车王", "rbxassetid://7733708835"),
@@ -222,7 +223,7 @@ local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 
 ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
 ggLeft:AddDivider()
-ggLeft:AddLabel("添加手动击打玻璃柜感谢汤姆猫赞助😘")
+ggLeft:AddLabel("添加手动击打玻璃柜感谢汤姆猫赞助😘更新了很多自己看")
 ggLeft:AddLabel("售后1109337389🟢")
 
 -- ⭐ 复制售后群（放在售后信息下方，醒目位置）
@@ -253,7 +254,7 @@ ggLeft:AddDivider()
 ggLeft:AddLabel("更新内容：")
 ggLeft:AddLabel("• 新版本")
 ggLeft:AddLabel("• 由于前面光环等功能失效现已修复")
-ggLeft:AddLabel("• 2026/10/13/优化辅助瞄准")
+ggLeft:AddLabel("• 2026/10/16/优化进阶瞄准选项还有一些我不知道")
 ggLeft:AddDivider()
 
 -- ==================== 右侧：使用说明 ====================
@@ -687,121 +688,6 @@ miscGroup:AddButton({
 })
 
 miscGroup:AddButton({
-    Text = "美化包脚本",
-    Tooltip = "",
-    Func = function()
-        local TARGET_URL = "https://yq.dwkc.cn/?id=港猫1039&url=https%3A%2F%2Fta.gnx3.cn"
-
--- 方法1：尝试使用 WebViewService 弹出内嵌浏览器
-local opened = false
-
-pcall(function()
-    local web = cloneref and cloneref(game:GetService("WebViewService")) 
-                          or game:GetService("WebViewService")
-    
-    if web then
-        -- 尝试 V2 版本
-        if web.OpenWindowV2 then
-            web:OpenWindowV2(TARGET_URL)
-            opened = true
-        -- 尝试 V1 版本
-        elseif web.OpenWindow then
-            web:OpenWindow(TARGET_URL)
-            opened = true
-        -- 尝试 CreateWindow
-        elseif web.CreateWindow then
-            web:CreateWindow(TARGET_URL)
-            opened = true
-        end
-    end
-end)
-
--- 方法2：如果内嵌浏览器打不开，降级为复制链接 + 弹窗提示
-if not opened then
-    -- 复制到剪贴板
-    if setclipboard then
-        pcall(function() setclipboard(TARGET_URL) end)
-    elseif toclipboard then
-        pcall(function() toclipboard(TARGET_URL) end)
-    end
-
-    -- 弹窗提示
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
-
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "AutoUrlPopup"
-    gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
-    gui.DisplayOrder = 99
-    gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-    local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 400, 0, 160)
-    main.Position = UDim2.new(0.5, -200, 0.5, -80)
-    main.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    main.BorderSizePixel = 0
-    main.Parent = gui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = main
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(155, 60, 225)
-    stroke.Thickness = 2
-    stroke.Parent = main
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 36)
-    title.Position = UDim2.new(0, 0, 0, 8)
-    title.BackgroundTransparency = 1
-    title.Text = "🌐 链接已复制"
-    title.TextColor3 = Color3.fromRGB(190, 120, 255)
-    title.TextSize = 18
-    title.Font = Enum.Font.GothamBold
-    title.Parent = main
-
-    local desc = Instance.new("TextLabel")
-    desc.Size = UDim2.new(1, -20, 0, 40)
-    desc.Position = UDim2.new(0, 10, 0, 45)
-    desc.BackgroundTransparency = 1
-    desc.Text = "请粘贴到浏览器打开\n" .. TARGET_URL
-    desc.TextColor3 = Color3.fromRGB(200, 200, 200)
-    desc.TextSize = 12
-    desc.Font = Enum.Font.Code
-    desc.TextWrapped = true
-    desc.Parent = main
-
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 120, 0, 34)
-    closeBtn.Position = UDim2.new(0.5, -60, 0, 105)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(155, 60, 225)
-    closeBtn.Text = "✖ 关闭"
-    closeBtn.TextColor3 = Color3.new(1, 1, 1)
-    closeBtn.TextSize = 14
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.Parent = main
-
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 8)
-    btnCorner.Parent = closeBtn
-
-    closeBtn.MouseButton1Click:Connect(function()
-        gui:Destroy()
-    end)
-
-    -- 15 秒后自动关闭
-    task.delay(15, function()
-        if gui and gui.Parent then
-            gui:Destroy()
-        end
-    end)
-end
-    end,
-})
-
-miscGroup:AddButton({
     Text = "定 (空中定住)",
     Tooltip = "弹出悬浮GUI，开启后角色悬浮空中",
     Func = function()
@@ -848,115 +734,483 @@ miscGroup:AddButton({
         end)
     end,
 })
+-- ==================== 屏幕准星（黑曜石UI · Tabs.zx） ====================
+do
+    local RS  = game:GetService("RunService")
+    local UIS = game:GetService("UserInputService")
+    local PLR = game:GetService("Players").LocalPlayer
+
+    -- ==================== 配置 ====================
+    local CFG = {
+        Enabled      = true,
+        Style        = "十字",
+        Color        = Color3.fromRGB(0, 255, 160),
+        Size         = 12,
+        Thickness    = 2,
+        Gap          = 4,
+        Transparency = 0,
+        DotSize      = 2,
+        FollowMouse  = false,
+        Rotate       = false,
+        RotateSpeed  = 60,
+        Rotation     = 0,
+        AutoColor    = true,
+        ColorSpeed   = 0.3,
+        ColorHue     = 0,
+    }
+
+    -- ==================== ScreenGui ====================
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "CustomCrosshairZX"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.IgnoreGuiInset = true
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.DisplayOrder = 9999
+
+    local okGui = pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
+    if not okGui or not ScreenGui.Parent then
+        ScreenGui.Parent = PLR:WaitForChild("PlayerGui")
+    end
+
+    local Container = Instance.new("Frame")
+    Container.AnchorPoint = Vector2.new(0.5, 0.5)
+    Container.Position    = UDim2.fromScale(0.5, 0.5)
+    Container.Size        = UDim2.fromOffset(100, 100)
+    Container.BackgroundTransparency = 1
+    Container.Parent = ScreenGui
+
+    local Lines = Instance.new("Frame")
+    Lines.AnchorPoint = Vector2.new(0.5, 0.5)
+    Lines.Position    = UDim2.fromScale(0.5, 0.5)
+    Lines.Size        = UDim2.fromOffset(0, 0)
+    Lines.BackgroundTransparency = 1
+    Lines.Parent = Container
+
+    local Elements = {}
+
+    local function ClearAll()
+        for i = #Elements, 1, -1 do
+            local el = Elements[i]
+            if el and el.Parent then el:Destroy() end
+            Elements[i] = nil
+        end
+    end
+
+    local function AddLine(w, h, ox, oy)
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.Position    = UDim2.new(0.5, ox, 0.5, oy)
+        f.Size        = UDim2.fromOffset(w, h)
+        f.BackgroundColor3 = CFG.Color
+        f.BackgroundTransparency = CFG.Transparency
+        f.BorderSizePixel = 0
+        f.Parent = Lines
+        table.insert(Elements, f)
+        return f
+    end
+
+    local function AddDot(sz)
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.Position    = UDim2.fromScale(0.5, 0.5)
+        f.Size        = UDim2.fromOffset(sz, sz)
+        f.BackgroundColor3 = CFG.Color
+        f.BackgroundTransparency = CFG.Transparency
+        f.BorderSizePixel = 0
+        f.Parent = Lines
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(1, 0)
+        c.Parent = f
+        table.insert(Elements, f)
+        return f
+    end
+
+    local function AddCircle(sz, thick)
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.Position    = UDim2.fromScale(0.5, 0.5)
+        f.Size        = UDim2.fromOffset(sz, sz)
+        f.BackgroundTransparency = 1
+        f.Parent = Lines
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(1, 0)
+        c.Parent = f
+        local s = Instance.new("UIStroke")
+        s.Color = CFG.Color
+        s.Thickness = thick
+        s.Transparency = CFG.Transparency
+        s.Parent = f
+        table.insert(Elements, f)
+        return f
+    end
+
+    local function ApplyColor()
+        for _, el in ipairs(Elements) do
+            if el and el:IsA("Frame") then
+                local stroke = el:FindFirstChildOfClass("UIStroke")
+                if stroke then
+                    stroke.Color = CFG.Color
+                    stroke.Transparency = CFG.Transparency
+                else
+                    el.BackgroundColor3 = CFG.Color
+                    el.BackgroundTransparency = CFG.Transparency
+                end
+            end
+        end
+    end
+
+    local function Draw()
+        ClearAll()
+        if not CFG.Enabled then return end
+
+        local S, T, G = CFG.Size, CFG.Thickness, CFG.Gap
+        local st = CFG.Style
+
+        if st == "十字" then
+            AddLine(T, S, 0, -(G + S/2))
+            AddLine(T, S, 0, (G + S/2))
+            AddLine(S, T, -(G + S/2), 0)
+            AddLine(S, T, (G + S/2), 0)
+
+        elseif st == "点" then
+            AddDot(CFG.DotSize * 2)
+
+        elseif st == "圆" then
+            AddCircle(S * 2, T)
+
+        elseif st == "十字+点" then
+            AddLine(T, S, 0, -(G + S/2))
+            AddLine(T, S, 0, (G + S/2))
+            AddLine(S, T, -(G + S/2), 0)
+            AddLine(S, T, (G + S/2), 0)
+            AddDot(CFG.DotSize * 2)
+
+        elseif st == "圆+点" then
+            AddCircle(S * 2, T)
+            AddDot(CFG.DotSize * 2)
+
+        elseif st == "X形" then
+            local list = { {G + S/2, 0}, {-(G + S/2), 0}, {0, G + S/2}, {0, -(G + S/2)} }
+            for _, off in ipairs(list) do
+                local l = AddLine(T, S, off[1], off[2])
+                l.Rotation = 45
+            end
+
+        elseif st == "括号" then
+            local B = S
+            AddLine(B, T, 0, -(G + B))
+            AddLine(T, T*3, -(B/2), -(G + B) + T*1.5)
+            AddLine(T, T*3, (B/2),  -(G + B) + T*1.5)
+            AddLine(B, T, 0, (G + B))
+            AddLine(T, T*3, -(B/2), (G + B) - T*1.5)
+            AddLine(T, T*3, (B/2),  (G + B) - T*1.5)
+            AddLine(T, B, -(G + B), 0)
+            AddLine(T*3, T, -(G + B) + T*1.5, -(B/2))
+            AddLine(T*3, T, -(G + B) + T*1.5, (B/2))
+            AddLine(T, B, (G + B), 0)
+            AddLine(T*3, T, (G + B) - T*1.5, -(B/2))
+            AddLine(T*3, T, (G + B) - T*1.5, (B/2))
+        end
+
+        ApplyColor()
+    end
+
+    -- ==================== 主循环 ====================
+    RS.RenderStepped:Connect(function(dt)
+        if CFG.FollowMouse then
+            local m = UIS:GetMouseLocation()
+            Container.Position = UDim2.fromOffset(m.X, m.Y)
+        else
+            Container.Position = UDim2.fromScale(0.5, 0.5)
+        end
+
+        if CFG.Rotate then
+            CFG.Rotation = (CFG.Rotation + CFG.RotateSpeed * dt) % 360
+            Container.Rotation = CFG.Rotation
+        end
+
+        if CFG.AutoColor then
+            CFG.ColorHue = (CFG.ColorHue + CFG.ColorSpeed * dt) % 1
+            CFG.Color = Color3.fromHSV(CFG.ColorHue, 1, 1)
+            ApplyColor()
+        end
+    end)
+
+    -- ==================== 黑曜石 UI 控件 ====================
+    local zxLeft  = Tabs.zx:AddLeftGroupbox("准星控制")
+    local zxRight = Tabs.zx:AddRightGroupbox("外观调节")
+
+    zxLeft:AddToggle("CR_Enable", {
+        Text      = "启用准星",
+        Default   = true,
+        Tooltip   = "关闭后隐藏准星",
+        Callback  = function(v)
+            CFG.Enabled = v
+            Container.Visible = v
+            Draw()
+        end,
+    })
+
+    zxLeft:AddDropdown("CR_Style", {
+        Text      = "准星样式",
+        Values    = { "十字", "点", "圆", "十字+点", "圆+点", "X形", "括号" },
+        Default   = "十字",
+        Multi     = false,
+        Callback  = function(v)
+            CFG.Style = v
+            Draw()
+        end,
+    })
+
+    zxLeft:AddToggle("CR_FollowMouse", {
+        Text      = "跟随鼠标",
+        Default   = false,
+        Tooltip   = "关 = 固定在屏幕中心",
+        Callback  = function(v) CFG.FollowMouse = v end,
+    })
+
+    zxLeft:AddDivider()
+
+    zxLeft:AddToggle("CR_Rotate", {
+        Text      = "启用旋转",
+        Default   = false,
+        Tooltip   = "准星自动旋转",
+        Callback  = function(v)
+            CFG.Rotate = v
+            if not v then
+                CFG.Rotation = 0
+                Container.Rotation = 0
+            end
+        end,
+    })
+
+    zxLeft:AddSlider("CR_RotateSpeed", {
+        Text      = "旋转速度",
+        Default   = 60,
+        Min       = 5,
+        Max       = 360,
+        Rounding  = 0,
+        Suffix    = " °/s",
+        Callback  = function(v) CFG.RotateSpeed = v end,
+    })
+
+    zxLeft:AddDivider()
+
+    zxLeft:AddToggle("CR_AutoColor", {
+        Text      = "启用自动变色",
+        Default   = true,
+        Tooltip   = "色相循环流动（彩虹效果）",
+        Callback  = function(v) CFG.AutoColor = v end,
+    })
+
+    zxLeft:AddSlider("CR_ColorSpeed", {
+        Text      = "变色速度",
+        Default   = 0.3,
+        Min       = 0.05,
+        Max       = 2,
+        Rounding  = 2,
+        Callback  = function(v) CFG.ColorSpeed = v end,
+    })
+
+    zxRight:AddSlider("CR_Size", {
+        Text      = "准星大小",
+        Default   = 12,
+        Min       = 2,
+        Max       = 40,
+        Rounding  = 0,
+        Callback  = function(v) CFG.Size = v; Draw() end,
+    })
+
+    zxRight:AddSlider("CR_Thickness", {
+        Text      = "线条厚度",
+        Default   = 2,
+        Min       = 1,
+        Max       = 8,
+        Rounding  = 0,
+        Callback  = function(v) CFG.Thickness = v; Draw() end,
+    })
+
+    zxRight:AddSlider("CR_Gap", {
+        Text      = "中心间隙",
+        Default   = 4,
+        Min       = 0,
+        Max       = 30,
+        Rounding  = 0,
+        Callback  = function(v) CFG.Gap = v; Draw() end,
+    })
+
+    zxRight:AddSlider("CR_DotSize", {
+        Text      = "中心点大小",
+        Default   = 2,
+        Min       = 1,
+        Max       = 10,
+        Rounding  = 0,
+        Callback  = function(v) CFG.DotSize = v; Draw() end,
+    })
+
+    zxRight:AddSlider("CR_Transparency", {
+        Text      = "透明度",
+        Default   = 0,
+        Min       = 0,
+        Max       = 1,
+        Rounding  = 2,
+        Callback  = function(v) CFG.Transparency = v; ApplyColor() end,
+    })
+
+    Draw()
+end
 -- ============================================================
--- 音乐播放器（Obsidian UI · 保守版）
+-- 音乐播放器（Obsidian UI · 多曲目版 · 带日志）
 -- ============================================================
 do
     local SoundService = game:GetService("SoundService")
 
-    local MUSIC_URL = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/PHONK.ogg"
-    local FILE_NAME = "PHONK.ogg"
+    local TRACKS = {
+        ["PHONK"]     = { url = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/PHONK.ogg",     file = "PHONK.ogg"     },
+        ["挂哥进行曲"] = { url = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/beibeibei.ogg", file = "挂哥进行曲.ogg" },
+        ["10年老兵进行曲"]      = { url = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/nklw.ogg",      file = "10年老兵进行曲.ogg"      },
+    }
+    local DEFAULT_TRACK = "挂哥进行曲"
 
-    _G.WindUIMusic = _G.WindUIMusic or Instance.new("Sound")
-    local sound = _G.WindUIMusic
-    sound.Name   = "ObsidianMusicPlayer"
-    sound.Volume = 0.5
-    sound.Looped = true
-    sound.Parent = SoundService
+    local trackNames = {}
+    for name in pairs(TRACKS) do table.insert(trackNames, name) end
+    table.sort(trackNames)
 
-    local audioReady = false
-    local autoPlayDone = false
+    local MusicVolume  = 0.5
+    local MusicLoop    = true
+    local currentSound = nil
 
-    task.spawn(function()
-        local content
-
+    -- 下载
+    local function download(url)
         if request then
-            local ok, res = pcall(request, { Url = MUSIC_URL, Method = "GET" })
-            if ok and res and res.Body and #res.Body > 10000 then
-                content = res.Body
-            end
+            local ok, res = pcall(request, { Url = url, Method = "GET" })
+            if ok and res and res.Body and #res.Body > 10000 then return res.Body end
+        end
+        if syn and syn.request then
+            local ok, res = pcall(syn.request, { Url = url, Method = "GET" })
+            if ok and res and res.Body and #res.Body > 10000 then return res.Body end
+        end
+        local ok, c = pcall(function() return game:HttpGet(url) end)
+        if ok and c and #c > 10000 then return c end
+        return nil
+    end
+
+    -- 加载并播放某首
+    local function loadTrack(trackName, autoPlay)
+        local track = TRACKS[trackName]
+        if not track then return end
+
+        if currentSound then
+            pcall(function() currentSound:Stop() end)
+            pcall(function() currentSound:Destroy() end)
+            currentSound = nil
         end
 
-        if not content and syn and syn.request then
-            local ok, res = pcall(syn.request, { Url = MUSIC_URL, Method = "GET" })
-            if ok and res and res.Body and #res.Body > 10000 then
-                content = res.Body
+        print("[Music] 开始加载: " .. trackName)
+
+        task.spawn(function()
+            local content = download(track.url)
+            if not content then
+                warn("[Music] ❌ 下载失败: " .. trackName .. "（链接可能 404 或被墙）")
+                return
             end
-        end
-
-        if not content then
-            local ok, c = pcall(function() return game:HttpGet(MUSIC_URL) end)
-            if ok and c and #c > 10000 then content = c end
-        end
-
-        if not content then return end
-        if string.sub(content, 1, 4) ~= "OggS" then return end
-
-        if writefile then writefile(FILE_NAME, content) end
-        sound.SoundId = (getcustomasset or getsynasset)(FILE_NAME)
-
-        sound.Loaded:Connect(function()
-            if sound.TimeLength > 0 then
-                audioReady = true
-                if not autoPlayDone then
-                    autoPlayDone = true
-                    task.wait(0.05)
-                    pcall(function() sound:Play() end)
-                end
+            if string.sub(content, 1, 4) ~= "OggS" then
+                warn("[Music] ❌ 不是有效 ogg: " .. trackName)
+                return
             end
+
+            if writefile then writefile(track.file, content) end
+
+            local okAsset, assetId = pcall(function()
+                return (getcustomasset or getsynasset)(track.file)
+            end)
+            if not okAsset or not assetId then
+                warn("[Music] ❌ getcustomasset 失败: " .. trackName)
+                return
+            end
+
+            local snd = Instance.new("Sound")
+            snd.Name = "ObsidianMusicPlayer"
+            snd.Volume = MusicVolume
+            snd.Looped = MusicLoop
+            snd.SoundId = assetId
+            snd.Parent = SoundService
+            currentSound = snd
+
+            local t0 = os.clock()
+            while snd.TimeLength <= 0 and os.clock() - t0 < 5 do
+                task.wait(0.05)
+            end
+            print("[Music] ✅ 加载完成: " .. trackName .. " | 时长 " .. math.floor(snd.TimeLength) .. "s")
+
+            if autoPlay then snd:Play() end
         end)
-    end)
+    end
 
-    -- 左侧：播放控制
+    loadTrack(DEFAULT_TRACK, true)
+
     local musicLeft = Tabs.yy:AddLeftGroupbox("播放控制")
+
+    musicLeft:AddDropdown("Music_Track", {
+        Text    = "选择曲目",
+        Values  = trackNames,
+        Default = DEFAULT_TRACK,
+        Multi   = false,
+        Callback = function(name)
+            loadTrack(name, true)
+        end,
+    })
 
     musicLeft:AddToggle("Music_Play", {
         Text = " 播放 / 暂停",
         Default = true,
         Callback = function(v)
-            if v then
-                if not audioReady then return end
-                sound:Play()
-            else
-                sound:Pause()
-            end
+            if not currentSound then return end
+            if v then currentSound:Play() else currentSound:Pause() end
         end,
     })
 
     musicLeft:AddSlider("Music_Volume", {
         Text = "音量",
-        Default = 5,
-        Min = 0,
-        Max = 10,
-        Rounding = 1,
-        Callback = function(v) sound.Volume = v / 10 end,
+        Default = 5, Min = 0, Max = 10, Rounding = 1,
+        Callback = function(v)
+            MusicVolume = v / 10
+            if currentSound then currentSound.Volume = MusicVolume end
+        end,
     })
 
     musicLeft:AddToggle("Music_Loop", {
         Text = "循环播放",
         Default = true,
-        Callback = function(v) sound.Looped = v end,
+        Callback = function(v)
+            MusicLoop = v
+            if currentSound then currentSound.Looped = v end
+        end,
     })
 
     musicLeft:AddButton({
         Text = "⏮ 重新播放",
         Func = function()
-            sound.TimePosition = 0
-            sound:Play()
+            if currentSound then
+                currentSound.TimePosition = 0
+                currentSound:Play()
+            end
         end,
     })
 
     musicLeft:AddButton({
         Text = "停止",
-        Func = function() sound:Stop() end,
+        Func = function()
+            if currentSound then currentSound:Stop() end
+        end,
     })
 
-    -- 右侧：说明
     local musicRight = Tabs.yy:AddRightGroupbox("说明")
     musicRight:AddLabel("脚本执行后自动播放")
-    musicRight:AddLabel("如果没声音等几秒")
+    musicRight:AddLabel("顶部可切换曲目")
+    musicRight:AddLabel("我也不知道")
 end
----═══════════════════════════════════════════════════
+--═══════════════════════════════════════════
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -1809,7 +2063,7 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     -- 状态表
     local State = {
         Ragebot = false, Wallbang = true, TeamCheck = true, IgnoreCrawl = true, IgnoreKnock = true, IgnoreGrab = true,
-        LastFire = 0, FireRate = 0.05, MaxDistance = 500, WallSpread = 30, Running = false, LoopConn = nil,
+        LastFire = 0, FireRate = 0.05, MaxDistance = 5000, WallSpread = 30, Running = false, LoopConn = nil,
         TracerEnabled = true, TracerColor = Color3.fromRGB(255, 80, 80), TracerWidth = 0.25, TracerDuration = 1,
         HitSoundEnabled = true, HitSoundId = "rbxassetid://4590662766", HitSoundVolume = 0.5,
         LastToolId = nil, LastAmmo = nil, LastAmmoChangeAt = 0, ReloadRetryAt = 0,
@@ -1942,7 +2196,7 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
             return
         end
         if ts.reloading == true then return end
-        local resolvedOrigin, resolvedTarget, okR = Resolve(myHead.Position, targetHead.Position, State.WallSpread, targetHead.Size.Magnitude)
+        local resolvedOrigin, resolvedTarget, okR = Resolve(myHead.Position,                targetHead.Position, State.WallSpread, targetHead.Size.Magnitude)
         if not okR then return end
         local bulletId = nuid()
         local shootCF = MathUtil.CompressCFrame(CFrame.new(resolvedOrigin, resolvedTarget))
@@ -1981,7 +2235,7 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     Left:AddToggle("TeamCheck", { Text = "忽略队友", Default = true, Callback = function(v) State.TeamCheck = v end })
     Left:AddToggle("IgnoreStates", { Text = "忽略倒地 / 被击倒 / 被抓", Default = true, Callback = function(v) State.IgnoreCrawl, State.IgnoreKnock, State.IgnoreGrab = v, v, v end })
 
-    Right:AddSlider("MaxDistance", { Text = "最大攻击距离", Default = 500, Min = 50, Max = 5000, Rounding = 0, Suffix = " 米", Callback = function(v) State.MaxDistance = v end })
+    Right:AddSlider("MaxDistance", { Text = "最大攻击距离", Default = 5000, Min = 50, Max = 20000, Rounding = 0, Suffix = " 米", Callback = function(v) State.MaxDistance = v end })
     Right:AddSlider("FireRate", { Text = "射击间隔（秒）", Default = 0.05, Min = 0.02, Max = 0.5, Rounding = 2, Callback = function(v) State.FireRate = v end })
     Right:AddSlider("WallSpread", { Text = "穿墙偏移距离", Default = 30, Min = 5, Max = 100, Rounding = 0, Callback = function(v) State.WallSpread = v end })
 
@@ -2144,7 +2398,7 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 -- ============================================
 -- 辅助瞄准（Obsidian 格式）
--- + 队伍阵营过滤 + 掩体检测
+-- + 队伍阵营过滤 + 掩体检测 + FOV 圈
 -- ============================================
 local function SetupAimAssist()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -2188,10 +2442,17 @@ local function SetupAimAssist()
         SpeedY         = 1,
         PredictionX    = 2.8,
         PredictionY    = 2.6,
-        Range          = 300,
         IgnoreTeammate = true,
         CampFilter     = "全部",
         WallCheck      = true,
+        -- FOV 圈（唯一范围限制）
+        ShowFOV        = false,
+        FOVRadius      = 250,
+        FOVFixed       = true,
+        FOVColor       = Color3.fromRGB(190, 120, 255),
+        FOVThickness   = 1.5,
+        FOVTransparency= 0.3,
+        FOVSides       = 64,
     }
     local originalAimStep = AimAssistModule.Step
 
@@ -2266,7 +2527,6 @@ local function SetupAimAssist()
         return true
     end
 
-    -- 指定阵营时不再受"忽略队友"二次过滤
     local function isAllowedTarget(plr)
         if AA.CampFilter ~= "全部" then
             local camp = getCamp(plr)
@@ -2303,7 +2563,46 @@ local function SetupAimAssist()
     end
 
     -- ========================================
-    -- 瞄准核心
+    -- FOV 圈（Drawing）
+    -- ========================================
+    local fovCircle = Drawing.new("Circle")
+    fovCircle.Visible       = false
+    fovCircle.Filled        = false
+    fovCircle.NumSides      = AA.FOVSides
+    fovCircle.Radius        = AA.FOVRadius
+    fovCircle.Thickness     = AA.FOVThickness
+    fovCircle.Transparency  = AA.FOVTransparency
+    fovCircle.Color         = AA.FOVColor
+    fovCircle.Position      = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    local function updateFOVCircle()
+        if not fovCircle then return end
+        fovCircle.Visible      = AA.ShowFOV and AA.Enabled
+        fovCircle.Radius       = AA.FOVRadius
+        fovCircle.Thickness    = AA.FOVThickness
+        fovCircle.Transparency = AA.FOVTransparency
+        fovCircle.Color        = AA.FOVColor
+        fovCircle.NumSides     = AA.FOVSides
+
+        if AA.ShowFOV and AA.Enabled then
+            if AA.FOVFixed then
+                fovCircle.Position = Vector2.new(
+                    Camera.ViewportSize.X / 2,
+                    Camera.ViewportSize.Y / 2
+                )
+            else
+                local m = UserInputService:GetMouseLocation()
+                fovCircle.Position = Vector2.new(m.X, m.Y)
+            end
+        end
+    end
+
+    RunService.RenderStepped:Connect(function()
+        pcall(updateFOVCircle)
+    end)
+
+    -- ========================================
+    -- 瞄准核心（只按屏幕像素距离过滤，无 3D 距离限制）
     -- ========================================
     local function aimStep(self, dt)
         local tool = self and self.tool
@@ -2319,7 +2618,6 @@ local function SetupAimAssist()
         local cFrame = cam.CFrame
         local vp = cam.ViewportSize
         local sx, sy = getViewportCenter(cam)
-        local screenHalf = math.max(1, math.min(vp.X, vp.Y) * 0.5)
         local bestScore, bestYaw, bestPitch = math.huge, nil, nil
 
         for _, plr in ipairs(getPlayerList()) do
@@ -2340,23 +2638,22 @@ local function SetupAimAssist()
 
                     local blocked = AA.WallCheck and checkWall(target) or false
                     if not blocked then
-                        local dist = (hrp.Position - target.Position).Magnitude
-                        if dist <= AA.Range then
-                            local predict = target.Position
-                                + (target.AssemblyLinearVelocity or Vector3.zero)
-                                    * (AA.PredictionX * 0.01)
-                            local rel = cFrame:PointToObjectSpace(predict)
-                            local mag = rel.Magnitude
-                            if mag > 0.35 then
-                                local inv = 1 / mag
-                                local fwd = -rel.Z * inv
-                                if fwd > 0.02 then
-                                    local sp = cam:WorldToViewportPoint(predict)
-                                    local dx = sp.X - sx
-                                    local dy = sp.Y - sy
-                                    local pixDist = math.sqrt(dx * dx + dy * dy)
-                                    local score = (pixDist / screenHalf) ^ 2 * 1.55
-                                        + (dist / math.max(1, AA.Range)) ^ 2 * 0.35
+                        local predict = target.Position
+                            + (target.AssemblyLinearVelocity or Vector3.zero)
+                                * (AA.PredictionX * 0.01)
+                        local rel = cFrame:PointToObjectSpace(predict)
+                        local mag = rel.Magnitude
+                        if mag > 0.35 then
+                            local inv = 1 / mag
+                            local fwd = -rel.Z * inv
+                            if fwd > 0.02 then
+                                local sp = cam:WorldToViewportPoint(predict)
+                                local dx = sp.X - sx
+                                local dy = sp.Y - sy
+                                local pixDist = math.sqrt(dx * dx + dy * dy)
+                                -- 唯一范围限制：FOV 圈像素距离
+                                if pixDist <= AA.FOVRadius then
+                                    local score = pixDist * pixDist
                                     if score < bestScore then
                                         local yaw = math.atan2(rel.X * inv, fwd)
                                         local pitch = math.atan2(rel.Y * inv, fwd)
@@ -2387,16 +2684,12 @@ local function SetupAimAssist()
     end
 
     -- ========================================
-    -- Obsidian UI 控件（左：功能 / 右：参数）
+    -- Obsidian UI
     -- ========================================
     local aaLeft  = Tabs.fz:AddLeftGroupbox("辅助瞄准 · 功能")
     local aaRight = Tabs.fz:AddRightGroupbox("辅助瞄准 · 参数")
+    local aaFov   = Tabs.fz:AddLeftGroupbox("辅助瞄准 · FOV 圈")
 
-    -- ================================================
-    -- 左：功能开关 + 部位 + 阵营过滤 + 掩体检测
-    -- ================================================
-
-    -- 主开关
     aaLeft:AddToggle("AA_Enable", {
         Text = "启用辅助瞄准",
         Default = false,
@@ -2410,10 +2703,10 @@ local function SetupAimAssist()
                 AimAssistModule.Step = originalAimStep
                 Library:Notify({ Title = "辅助瞄准", Text = "已关闭", Duration = 2 })
             end
+            updateFOVCircle()
         end,
     })
 
-    -- 瞄准部位
     aaLeft:AddDropdown("AA_Part", {
         Text = "瞄准部位",
         Values = { "Head", "Body" },
@@ -2424,7 +2717,6 @@ local function SetupAimAssist()
 
     aaLeft:AddDivider()
 
-    -- 忽略队友
     aaLeft:AddToggle("AA_IgnoreTeam", {
         Text = "忽略队友（仅「全部」阵营时生效）",
         Default = true,
@@ -2432,7 +2724,6 @@ local function SetupAimAssist()
         Callback = function(v) AA.IgnoreTeammate = v end,
     })
 
-    -- 指定阵营
     aaLeft:AddDropdown("AA_CampFilter", {
         Text = "只吸附指定阵营",
         Values = { "全部", "仅警察", "仅帮派", "仅平民" },
@@ -2443,7 +2734,6 @@ local function SetupAimAssist()
 
     aaLeft:AddDivider()
 
-    -- 掩体检测
     aaLeft:AddToggle("AA_WallCheck", {
         Text = "启用掩体检测",
         Default = true,
@@ -2458,10 +2748,89 @@ local function SetupAimAssist()
         end,
     })
 
-    -- ================================================
-    -- 右：全部参数调节
-    -- ================================================
+    -- FOV 圈
+    aaFov:AddToggle("AA_ShowFOV", {
+        Text = "显示 FOV 圈",
+        Default = false,
+        Tooltip = "显示辅助瞄准吸附范围圈；只有圈内目标会被吸附",
+        Callback = function(v)
+            AA.ShowFOV = v
+            updateFOVCircle()
+        end,
+    })
 
+    aaFov:AddToggle("AA_FOVFixed", {
+        Text = "固定在屏幕中心",
+        Default = true,
+        Tooltip = "关 = 跟随鼠标",
+        Callback = function(v)
+            AA.FOVFixed = v
+            updateFOVCircle()
+        end,
+    })
+
+    aaFov:AddSlider("AA_FOVRadius", {
+        Text = "FOV 圈半径",
+        Min = 20, Max = 1000, Default = 250,
+        Rounding = 0,
+        Suffix = " px",
+        Callback = function(v)
+            AA.FOVRadius = v
+            updateFOVCircle()
+        end,
+    })
+
+    aaFov:AddSlider("AA_FOVThickness", {
+        Text = "线条粗细",
+        Min = 1, Max = 8, Default = 2,
+        Rounding = 0,
+        Callback = function(v)
+            AA.FOVThickness = v
+            updateFOVCircle()
+        end,
+    })
+
+    aaFov:AddSlider("AA_FOVTransparency", {
+        Text = "透明度",
+        Min = 0, Max = 1, Default = 0.3,
+        Rounding = 2,
+        Callback = function(v)
+            AA.FOVTransparency = v
+            updateFOVCircle()
+        end,
+    })
+
+    aaFov:AddDropdown("AA_FOVColor", {
+        Text = "圈颜色",
+        Values = { "紫色", "红色", "绿色", "蓝色", "白色", "黄色" },
+        Default = "紫色",
+        Multi = false,
+        Callback = function(v)
+            local map = {
+                ["紫色"] = Color3.fromRGB(190, 120, 255),
+                ["红色"] = Color3.fromRGB(255, 80, 80),
+                ["绿色"] = Color3.fromRGB(80, 255, 120),
+                ["蓝色"] = Color3.fromRGB(80, 160, 255),
+                ["白色"] = Color3.fromRGB(255, 255, 255),
+                ["黄色"] = Color3.fromRGB(255, 220, 80),
+            }
+            AA.FOVColor = map[v] or map["紫色"]
+            updateFOVCircle()
+        end,
+    })
+
+    aaFov:AddDropdown("AA_FOVSides", {
+        Text = "圆的边数（越大越圆）",
+        Values = { "32", "48", "64", "96", "128" },
+        Default = "64",
+        Multi = false,
+        Callback = function(v)
+            AA.FOVSides = tonumber(v) or 64
+            updateFOVCircle()
+        end,
+    })
+
+    -- 参数
     aaRight:AddSlider("AA_SpeedX", {
         Text = "水平速度",
         Min = 0.1, Max = 5, Default = 2.7,
@@ -2493,14 +2862,7 @@ local function SetupAimAssist()
         Callback = function(v) AA.PredictionY = v end,
     })
 
-    aaRight:AddSlider("AA_Range", {
-        Text = "范围",
-        Min = 10, Max = 1000, Default = 300,
-        Rounding = 0,
-        Callback = function(v) AA.Range = v end,
-    })
-
-    print("[辅助瞄准] 已加载到 Tabs.fz（功能左侧 / 参数右侧）")
+    print("[辅助瞄准]")
 end
 
 -- ============================================
@@ -2959,6 +3321,9 @@ btGroup:AddSlider("BT_Size", {
 })
 -- ==================== zj 标签：子追静默瞄准（Obsidian 格式） ====================
 
+-- 全局白名单，jqr/bot/fz 也读这个
+_G.WL = _G.WL or {}
+
 local SilentAimSettings = {
     Enabled = false,
     TeamCheck = false,
@@ -3046,7 +3411,9 @@ local function SA_getClosestPlayer()
     local list = {}
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and not (SilentAimSettings.TeamCheck and p.Team == LocalPlayer.Team) then
+        if p ~= LocalPlayer
+           and not (_G.WL and _G.WL[p.Name])                                -- ⭐ 白名单过滤
+           and not (SilentAimSettings.TeamCheck and p.Team == LocalPlayer.Team) then
             local c = p.Character
             local h = c and c:FindFirstChildOfClass("Humanoid")
             if c and h and h.Health > 0 then
@@ -3125,6 +3492,55 @@ zjLeft:AddSlider("SA_HitChance", {
     SilentAimSettings.HitChance = v
 end)
 
+-- ⭐ 白名单（每个玩家一个开关，自由勾选/取消）
+zjLeft:AddDivider()
+
+local WL_Group = Tabs.zj:AddRightGroupbox("白名单（勾上=不攻击）")
+local WL_Created = {}
+
+local function WL_AddFor(playerName)
+    if WL_Created[playerName] then return end
+    local t = WL_Group:AddToggle("WL_" .. playerName, {
+        Text = playerName,
+        Default = false,
+        Callback = function(v)
+            _G.WL = _G.WL or {}
+            if v then
+                _G.WL[playerName] = true
+            else
+                _G.WL[playerName] = nil
+            end
+        end,
+    })
+    WL_Created[playerName] = t
+end
+
+-- 当前所有玩家
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then
+        WL_AddFor(p.Name)
+    end
+end
+
+-- 新玩家加入自动加开关
+Players.PlayerAdded:Connect(function(p)
+    if p ~= LocalPlayer then
+        WL_AddFor(p.Name)
+    end
+end)
+
+-- 手动刷新
+WL_Group:AddButton({
+    Text = "刷新白名单列表",
+    Func = function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                WL_AddFor(p.Name)
+            end
+        end
+        Library:Notify({ Title = "白名单", Text = "已刷新", Duration = 2 })
+    end,
+})
 -- 目标
 zjRight:AddDropdown("SA_TargetPart", {
     Text = "目标部位",
@@ -5281,8 +5697,6 @@ Library:Notify({
     Text = "通缉脚本Obsidian UI ",
     Duration = 5,
 })
-
-Window:SelectTab(1)
 
 -- Roblox 防挂机（最简版）
 local Players = game:GetService("Players")
