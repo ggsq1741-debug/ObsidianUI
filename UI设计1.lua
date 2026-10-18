@@ -197,6 +197,7 @@ local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
     zx   = Window:AddTab("准心设置", "rbxassetid://7733666258"),
+    wsj   = Window:AddTab("万圣节功能", "rbxassetid://7734058599"),
     yy   = Window:AddTab("音乐 Music", "rbxassetid://7734020554"),
     sf   = Window:AddTab("甩飞", "rbxassetid://7733799371"),
     fc   = Window:AddTab("亚洲车王", "rbxassetid://7733708835"),
@@ -204,7 +205,7 @@ local Tabs = {
     jx   = Window:AddTab("远程击杀", "crown"),
     fz  = Window:AddTab("辅助瞄准进阶", "crosshair"),
     gh   = Window:AddTab("光环设置", "crown"),
-    bot  = Window:AddTab("瞄准", "target"),
+    bot  = Window:AddTab("范围", "target"),
     zj  = Window:AddTab("子追静默瞄准", "target"),
     ESP  = Window:AddTab("ESP", "eye"),
     ESPP = Window:AddTab("ESP2", "eye"),
@@ -223,7 +224,7 @@ local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 
 ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
 ggLeft:AddDivider()
-ggLeft:AddLabel("添加手动击打玻璃柜感谢汤姆猫赞助😘更新了很多自己看")
+ggLeft:AddLabel("2026.10.18更新万圣节")
 ggLeft:AddLabel("售后1109337389🟢")
 
 -- ⭐ 复制售后群（放在售后信息下方，醒目位置）
@@ -350,12 +351,28 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- ==================== 玩家页：灵魂飞行 ====================
--- ==================== 玩家页：飞行（替换灵魂飞行） ====================
+-- ==================== 玩家页：飞行（防检测优化版） ====================
 local FlyingEnabled = false
-local FlightSpeed = 180
+local FlightSpeed = 180 -- 建议不要超过 200，太快会触发坐标瞬移检测
 local CurrentAO, CurrentLV, CurrentMoverAttachment, FlightConnection
 local flyHumanoid = nil
+
+-- ⭐ 升级 Hook：当开启飞行时，欺骗服务器你的速度永远是 0
+local mt_hook = getrawmetatable(game)
+local old_hook = mt_hook.__index
+setreadonly(mt_hook, false)
+mt_hook.__index = newcclosure(function(self, key)
+    -- 如果正在飞行，并且服务器试图读取你的速度，直接返回 0
+    if FlyingEnabled and (key == "AssemblyLinearVelocity" or key == "Velocity") and self:IsA("BasePart") then
+        return Vector3.new(0, 0, 0)
+    end
+    -- 原有的防摔落 Hook
+    if hookVelocity and (key == "AssemblyLinearVelocity" or key == "Velocity") and self:IsA("BasePart") then
+        return Vector3.new(0, 0, 0)
+    end
+    return old_hook(self, key)
+end)
+setreadonly(mt_hook, true)
 
 local function getFlyControlModule()
     local PlayerModule = LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")
@@ -393,7 +410,10 @@ local function startFlying()
     if not character then return end
 
     CurrentAO, CurrentLV, CurrentMoverAttachment, flyHumanoid = setupFlyBodyMovers(character)
-    FlyingEnabled = true
+    FlyingEnabled = true -- 开启后，上面的 Hook 就会生效
+
+    -- 强行夺取网络所有权，防止服务器乱动你
+    pcall(function() character.HumanoidRootPart:SetNetworkOwner(LocalPlayer) end)
 
     local controlModule = getFlyControlModule()
 
@@ -419,6 +439,7 @@ local function startFlying()
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then B = 1 end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then L = 1 end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then R = 1 end
+        -- 手机端跳跃上升
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then Q = 1 end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then E = 1 end
 
@@ -430,6 +451,7 @@ local function startFlying()
             CurrentLV.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
             CurrentLV.VectorVelocity = flightVector.Unit * FlightSpeed
         else
+            -- ⭐ 如果松开摇杆，速度设为 0，悬停在原地
             CurrentLV.VectorVelocity = Vector3.new(0, 0, 0)
         end
 
@@ -468,7 +490,7 @@ local flyGroup = Tabs.wj:AddLeftGroupbox("飞行")
 flyGroup:AddToggle("Fly_Toggle", {
     Text = "飞行模式",
     Default = false,
-    Tooltip = "WASD移动，空格上升，左Ctrl下降",
+    Tooltip = "视角看向哪就往哪飞，跳跃键上升",
     Callback = function(v)
         if v then startFlying() else stopFlying() end
     end,
@@ -476,9 +498,9 @@ flyGroup:AddToggle("Fly_Toggle", {
 
 flyGroup:AddSlider("Fly_Speed", {
     Text = "飞行速度",
-    Default = 180,
+    Default = 120,
     Min = 50,
-    Max = 400,
+    Max = 400, -- 上限降到 300，不然必封
     Rounding = 0,
     Callback = function(val) FlightSpeed = val end,
 })
@@ -1058,6 +1080,403 @@ do
     })
 
     Draw()
+end
+-- ==================== 万圣节：终极怪物光环 (移植版) ====================
+do
+    local WSJ_Players = game:GetService("Players")
+    local WSJ_RunService = game:GetService("RunService")
+    local WSJ_Workspace = game:GetService("Workspace")
+    local WSJ_Camera = WSJ_Workspace.CurrentCamera
+    local WSJ_LocalPlayer = WSJ_Players.LocalPlayer
+    local WSJ_Debris = game:GetService("Debris")
+    local WSJ_SoundService = game:GetService("SoundService")
+    local WSJ_ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+    local DevvFolder = WSJ_ReplicatedStorage:FindFirstChild("Devv") or WSJ_ReplicatedStorage:FindFirstChild("devv")
+    if not DevvFolder then
+        Library:Notify({ Title = "万圣节功能", Text = "未找到 Devv 模块，请进入游戏后使用", Duration = 5 })
+        return
+    end
+
+    local DevvModule  = require(DevvFolder)
+    local Network     = DevvModule.load("Network")
+    local ClientTools = require(WSJ_ReplicatedStorage.Client.Wanted.Modules.ClientTools)
+    local MathUtil    = DevvModule.load("MathUtil")
+    local nuid        = DevvModule.load("NUID")
+    local fireServer  = Network.FireServer
+
+    -- ==================== 状态配置 ====================
+    local MobAuraConfig = {
+        Enabled  = false,
+        Range    = 300,
+        Interval = 0.01,     
+        UseFOV   = true,     
+        FOV      = 200,      
+        ShowTracer    = true,
+        TracerColor   = Color3.fromRGB(255, 80, 80),
+        TracerWidth   = 0.15,
+        TracerLife    = 0.2,
+        PlaySound     = true,
+        SoundId       = "rbxassetid://6607204501",
+        SoundVolume   = 0.4,
+    }
+
+    local MobChamsConfig = { 
+        Enabled = false,
+        TextSize = 10,
+        EspColor = Color3.fromRGB(0, 255, 0),
+    }
+
+    -- ==================== 音效与射线 ====================
+    local TracerFolder = WSJ_Workspace:FindFirstChild("__MobTracers") or Instance.new("Folder", WSJ_Workspace)
+    TracerFolder.Name = "__MobTracers"
+
+    local function createTracer(fromPos, toPos)
+        if not MobAuraConfig.ShowTracer then return end
+        pcall(function()
+            local a0 = Instance.new("Attachment", TracerFolder); a0.WorldPosition = fromPos
+            local a1 = Instance.new("Attachment", TracerFolder); a1.WorldPosition = toPos
+            local beam = Instance.new("Beam", TracerFolder)
+            beam.Attachment0, beam.Attachment1 = a0, a1
+            beam.Color = ColorSequence.new(MobAuraConfig.TracerColor)
+            beam.Width0, beam.Width1 = MobAuraConfig.TracerWidth, MobAuraConfig.TracerWidth
+            beam.LightEmission, beam.LightInfluence, beam.FaceCamera = 1, 0, true
+            beam.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.9)})
+            WSJ_Debris:AddItem(beam, MobAuraConfig.TracerLife)
+            WSJ_Debris:AddItem(a0, MobAuraConfig.TracerLife)
+            WSJ_Debris:AddItem(a1, MobAuraConfig.TracerLife)
+        end)
+    end
+
+    local function playHitSound()
+        if not MobAuraConfig.PlaySound then return end
+        pcall(function()
+            local snd = Instance.new("Sound", WSJ_SoundService)
+            snd.SoundId, snd.Volume = MobAuraConfig.SoundId, MobAuraConfig.SoundVolume
+            snd:Play(); WSJ_Debris:AddItem(snd, 1)
+        end)
+    end
+
+    -- ==================== ⭐ 内透 + 底层精准血量 (防崩版) ====================
+    WSJ_RunService.RenderStepped:Connect(function()
+        local mobsFolder = WSJ_Workspace:FindFirstChild("Mobs")
+        if not mobsFolder then return end
+        
+        if not MobChamsConfig.Enabled then
+            for _, mob in ipairs(mobsFolder:GetChildren()) do
+                if mob:IsA("Model") then
+                    local hl = mob:FindFirstChild("__MobHighlight")
+                    if hl then hl:Destroy() end
+                    local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
+                    if head then
+                        local bb = head:FindFirstChild("__MobNameTag")
+                        if bb then bb:Destroy() end
+                    end
+                end
+            end
+            return 
+        end
+
+        for _, mob in ipairs(mobsFolder:GetChildren()) do
+            if mob:IsA("Model") then
+                pcall(function()
+                    local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
+                    local hum = mob:FindFirstChildOfClass("Humanoid")
+                    
+                    if head and hum then
+                        -- 1. 内透高亮
+                        local hl = mob:FindFirstChild("__MobHighlight")
+                        if not hl then
+                            hl = Instance.new("Highlight")
+                            hl.Name = "__MobHighlight"
+                            hl.FillTransparency = 0.3 
+                            hl.OutlineTransparency = 0 
+                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            hl.Parent = mob
+                        end
+                        hl.FillColor = MobChamsConfig.EspColor
+                        hl.OutlineColor = MobChamsConfig.EspColor
+
+                        -- 2. 头顶 UI
+                        local bb = head:FindFirstChild("__MobNameTag")
+                        if not bb then
+                            bb = Instance.new("BillboardGui")
+                            bb.Name = "__MobNameTag"
+                            bb.Size = UDim2.new(0, 100, 0, 25)
+                            bb.StudsOffset = Vector3.new(0, 1.5, 0) 
+                            bb.AlwaysOnTop = true
+                            bb.Parent = head
+
+                            local textName = Instance.new("TextLabel")
+                            textName.Name = "TagText"
+                            textName.Size = UDim2.new(1, 0, 0.5, 0)
+                            textName.BackgroundTransparency = 1
+                            textName.Font = Enum.Font.GothamBold
+                            textName.TextSize = MobChamsConfig.TextSize
+                            textName.TextStrokeTransparency = 0.2
+                            textName.TextColor3 = MobChamsConfig.EspColor
+                            textName.Text = "港猫的小弟" -- 写死名字
+                            textName.Parent = bb
+
+                            local textHealth = Instance.new("TextLabel")
+                            textHealth.Name = "HealthText"
+                            textHealth.Size = UDim2.new(1, 0, 0.5, 0)
+                            textHealth.Position = UDim2.new(0, 0, 0.5, 0)
+                            textHealth.BackgroundTransparency = 1
+                            textHealth.Font = Enum.Font.GothamBold
+                            textHealth.TextSize = MobChamsConfig.TextSize
+                            textHealth.TextStrokeTransparency = 0.2
+                            textHealth.TextColor3 = Color3.new(1, 1, 1)
+                            textHealth.Parent = bb
+                        end
+                        
+                        -- 3. 真实血量读取
+                        local realHealth = mob:GetAttribute("health")
+                        local maxHealth = mob:GetAttribute("maxHealth")
+                        if not realHealth then realHealth = hum.Health end
+                        if not maxHealth then maxHealth = hum.MaxHealth end
+
+                        -- 4. 刷新文字
+                        local tagText = bb:FindFirstChild("TagText")
+                        if tagText then 
+                            tagText.TextColor3 = MobChamsConfig.EspColor 
+                            tagText.Text = "港猫的小弟" -- 写死名字
+                            tagText.TextSize = MobChamsConfig.TextSize
+                        end
+                        
+                        local healthText = bb:FindFirstChild("HealthText")
+                        if healthText then 
+                            healthText.Text = string.format("HP: %d/%d", math.floor(realHealth), math.floor(maxHealth))
+                            healthText.TextSize = MobChamsConfig.TextSize
+                            if realHealth < maxHealth * 0.3 then
+                                healthText.TextColor3 = Color3.fromRGB(255, 50, 50)
+                            else
+                                healthText.TextColor3 = Color3.new(1, 1, 1)
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ==================== FOV 圆圈 ====================
+    local fovCircle = Drawing.new("Circle")
+    fovCircle.Visible = false
+    fovCircle.Color = Color3.fromRGB(255, 50, 50)
+    fovCircle.Thickness = 1.5
+    fovCircle.Filled = false
+    fovCircle.Transparency = 0.5
+    fovCircle.NumSides = 60
+
+    WSJ_RunService.RenderStepped:Connect(function()
+        if MobAuraConfig.Enabled and MobAuraConfig.UseFOV then
+            fovCircle.Visible = true
+            fovCircle.Position = WSJ_Camera.ViewportSize / 2
+            fovCircle.Radius = MobAuraConfig.FOV
+        else
+            fovCircle.Visible = false
+        end
+    end)
+
+    -- ==================== 寻找怪物 ====================
+    local function getClosestMob()
+        local myChar = WSJ_LocalPlayer.Character
+        if not myChar then return nil end
+        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return nil end
+
+        local center = WSJ_Camera.ViewportSize / 2
+        local closestMob = nil
+        local minDist = math.huge
+        local mobsFolder = WSJ_Workspace:FindFirstChild("Mobs")
+        
+        if not mobsFolder then return nil end
+
+        for _, mob in ipairs(mobsFolder:GetChildren()) do
+            local hum = mob:FindFirstChildOfClass("Humanoid")
+            local hrp = mob:FindFirstChild("HumanoidRootPart")
+            
+            if hum and hrp and hum.Health > 0 then
+                local dist = (myHRP.Position - hrp.Position).Magnitude
+                if dist <= MobAuraConfig.Range then
+                    if MobAuraConfig.UseFOV then
+                        local screenPos, onScreen = WSJ_Camera:WorldToViewportPoint(hrp.Position)
+                        if onScreen then
+                            local fovDist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                            if fovDist <= MobAuraConfig.FOV and dist < minDist then
+                                minDist = dist; closestMob = hrp
+                            end
+                        end
+                    else
+                        if dist < minDist then
+                            minDist = dist; closestMob = hrp
+                        end
+                    end
+                end
+            end
+        end
+        return closestMob
+    end
+
+    -- ==================== 真实开枪 ====================
+    local function fireAtMob(targetPart)
+        local char = WSJ_LocalPlayer.Character
+        local myHead = char and char:FindFirstChild("Head")
+        if not myHead then return end
+
+        local ok, tool = pcall(ClientTools.GetLocalEquippedTool)
+        if not ok or not tool or not tool.toolId then return end
+        local ts = tool.toolState
+
+        if ts and ts.ammo and ts.ammo <= 0 then
+            pcall(fireServer, "reload", tool.toolId)
+            pcall(fireServer, "chamber", tool.toolId)
+            return
+        end
+
+        local targetPos = targetPart.Position
+        local originPos = myHead.Position
+        local dir = targetPos - originPos
+        local bulletId = nuid()
+        local shootCF = MathUtil.CompressCFrame(CFrame.new(originPos, targetPos))
+        
+        pcall(function() fireServer("shoot", tool.toolId, shootCF, { { bulletId, shootCF } }) end)
+        if ts and ts.ammo then ts.ammo = ts.ammo - 1 end
+
+        createTracer(originPos, targetPos)
+        playHitSound()
+
+        local unit = dir.Magnitude > 0.001 and dir.Unit or myHead.CFrame.LookVector
+        local args = {
+            {
+                massLimit = 5, hit = targetPart, position = targetPos, normal = -unit,
+                material = targetPart.Material or Enum.Material.Plastic,
+                distance = dir.Magnitude, collisionPoint = targetPos, direction = unit, speed = 1196.285, 
+                source = { sourceType = "Bullet", sourceId = bulletId, sourceToolId = tool.toolId, sourcePlayerId = WSJ_LocalPlayer.UserId },
+                hitName = "HumanoidRootPart", hitType = "mob", mobType = targetPart.Parent.Name
+            }
+        }
+        pcall(function() fireServer("registerProjectileHits", bulletId, tool.toolId, args) end)
+    end
+
+    -- ==================== 主循环 ====================
+    task.spawn(function()
+        while true do
+            if MobAuraConfig.Enabled then
+                pcall(function()
+                    local mobPart = getClosestMob()
+                    if mobPart then fireAtMob(mobPart) end
+                end)
+                task.wait(MobAuraConfig.Interval)
+            else
+                task.wait(0.5)
+            end
+        end
+    end)
+
+    -- ==================== Obsidian UI (挂载到 wsj 标签) ====================
+    local wsjLeft = Tabs.wsj:AddLeftGroupbox("自动打怪")
+    local wsjRight = Tabs.wsj:AddRightGroupbox("透视与视觉")
+
+    -- 左栏：战斗
+    wsjLeft:AddToggle("WSJ_MobAura", {
+        Text = "启用怪物光环",
+        Default = false,
+        Tooltip = "自动锁头开枪，打得准",
+        Callback = function(v)
+            MobAuraConfig.Enabled = v
+            Library:Notify({ Title = "怪物光环", Text = v and "已开启" or "已关闭", Duration = 2 })
+        end,
+    })
+
+    wsjLeft:AddToggle("WSJ_UseFOV", {
+        Text = "开启 FOV 圈限制",
+        Default = true,
+        Callback = function(v) MobAuraConfig.UseFOV = v end,
+    })
+
+    wsjLeft:AddSlider("WSJ_FOV", {
+        Text = "FOV 圈大小",
+        Min = 50, Max = 800, Default = 200,
+        Rounding = 0,
+        Suffix = " px",
+        Callback = function(v) MobAuraConfig.FOV = v end,
+    })
+
+    wsjLeft:AddSlider("WSJ_Interval", {
+        Text = "极限射速 (秒)",
+        Min = 0.01, Max = 1, Default = 0.01,
+        Rounding = 2,
+        Callback = function(v) MobAuraConfig.Interval = v end,
+    })
+
+    wsjLeft:AddDivider()
+
+    wsjLeft:AddToggle("WSJ_Tracer", {
+        Text = "显示弹道射线",
+        Default = true,
+        Callback = function(v) MobAuraConfig.ShowTracer = v end,
+    })
+
+    wsjLeft:AddToggle("WSJ_Sound", {
+        Text = "播放命中音效",
+        Default = true,
+        Callback = function(v) MobAuraConfig.PlaySound = v end,
+    })
+
+    wsjLeft:AddDropdown("WSJ_SoundSelect", {
+        Text = "选择音效",
+        Values = { "Neverlose", "Gamesense", "Fatality", "Minecraft", "经典叮叮叮" },
+        Default = "Neverlose",
+        Multi = false,
+        Callback = function(v)
+            local map = {
+                ["Neverlose"] = "rbxassetid://6607204501",
+                ["Gamesense"] = "rbxassetid://5633695679",
+                ["Fatality"] = "rbxassetid://6607142036",
+                ["Minecraft"] = "rbxassetid://7151570575",
+                ["经典叮叮叮"] = "rbxassetid://4590662766",
+            }
+            MobAuraConfig.SoundId = map[v] or "rbxassetid://6607204501"
+        end,
+    })
+
+    -- 右栏：内透
+    wsjRight:AddToggle("WSJ_Chams", {
+        Text = "启用怪物内透",
+        Desc = "",
+        Default = false,
+        Callback = function(v)
+            MobChamsConfig.Enabled = v
+            Library:Notify({ Title = "怪物内透", Text = v and "已开启" or "已关闭", Duration = 2 })
+        end,
+    })
+
+    wsjRight:AddSlider("WSJ_ChamsSize", {
+        Text = "字体大小",
+        Min = 8, Max = 18, Default = 10,
+        Rounding = 0,
+        Callback = function(v) MobChamsConfig.TextSize = v end,
+    })
+
+    wsjRight:AddDropdown("WSJ_ChamsColor", {
+        Text = "透视颜色",
+        Values = { "绿色", "红色", "蓝色", "紫色", "黄色", "白色" },
+        Default = "绿色",
+        Multi = false,
+        Callback = function(v)
+            local map = {
+                ["绿色"] = Color3.fromRGB(0, 255, 0),
+                ["红色"] = Color3.fromRGB(255, 50, 50),
+                ["蓝色"] = Color3.fromRGB(50, 150, 255),
+                ["紫色"] = Color3.fromRGB(180, 50, 255),
+                ["黄色"] = Color3.fromRGB(255, 255, 50),
+                ["白色"] = Color3.fromRGB(255, 255, 255),
+            }
+            MobChamsConfig.EspColor = map[v] or Color3.fromRGB(0, 255, 0)
+        end,
+    })
 end
 -- ============================================================
 -- 音乐播放器（Obsidian UI · 多曲目版 · 带日志）
@@ -1978,7 +2397,7 @@ local fcFlyLeft = Tabs.fc:AddLeftGroupbox("飞车脚本")
 fcFlyLeft:AddButton({
     Text = "启动飞车脚本",
     Func = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/BAL/refs/heads/main/GUI.lua"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/GUI.lua"))()
         Library:Notify({
             Title = "飞车脚本",
             Text = "已加载，请查看新出现的浮按钮",
@@ -2060,9 +2479,9 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     local fireServer    = Network.FireServer
     local ClientTools   = require(ReplicatedStorage.Client.Wanted.Modules.ClientTools)
 
-    -- 状态表
+    -- 状态表（彻底移除了 TeamCheck）
     local State = {
-        Ragebot = false, Wallbang = true, TeamCheck = true, IgnoreCrawl = true, IgnoreKnock = true, IgnoreGrab = true,
+        Ragebot = false, Wallbang = true, IgnoreCrawl = true, IgnoreKnock = true, IgnoreGrab = true,
         LastFire = 0, FireRate = 0.05, MaxDistance = 5000, WallSpread = 30, Running = false, LoopConn = nil,
         TracerEnabled = true, TracerColor = Color3.fromRGB(255, 80, 80), TracerWidth = 0.25, TracerDuration = 1,
         HitSoundEnabled = true, HitSoundId = "rbxassetid://4590662766", HitSoundVolume = 0.5,
@@ -2074,32 +2493,37 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         local c = LocalPlayer.Character
         return c, c and c:FindFirstChild("HumanoidRootPart"), c and c:FindFirstChild("Head")
     end
+    
     local function isAlive(p)
-        local c = p and p.Character; if not c then return false end
-        local h = c:FindFirstChildOfClass("Humanoid"); return h and h.Health > 0
+        local c = p and p.Character
+        if not c then return false end
+        local h = c:FindFirstChildOfClass("Humanoid")
+        return h and h.Health > 0
     end
-    local function isTeam(p)
-        if not State.TeamCheck then return false end
-        if p.Team and LocalPlayer.Team and p.Team == LocalPlayer.Team then return true end
-        if p.TeamColor and LocalPlayer.TeamColor and p.TeamColor == LocalPlayer.TeamColor then return true end
-        return false
-    end
+    
+    -- 删除了 isTeam 函数
+    
     local function getProp(p, key)
         local CP = ClientPlayers.GetByPlayerId(p.UserId)
         if CP and CP.GetPlayerProperty then
-            local ok, v = pcall(CP.GetPlayerProperty, CP, key); return ok and v == true
+            local ok, v = pcall(CP.GetPlayerProperty, CP, key)
+            return ok and v == true
         end
         return false
     end
+    
     local function shouldIgnore(p)
         if State.IgnoreCrawl and getProp(p, "crawling") then return true end
         if State.IgnoreKnock and getProp(p, "knocked")  then return true end
         if State.IgnoreGrab  and getProp(p, "grabbed")  then return true end
         return false
     end
+    
     local function isRagdoll()
-        local c = LocalPlayer.Character; if not c then return true end
-        local h = c:FindFirstChildOfClass("Humanoid"); if not h or h.Health <= 0 then return true end
+        local c = LocalPlayer.Character
+        if not c then return true end
+        local h = c:FindFirstChildOfClass("Humanoid")
+        if not h or h.Health <= 0 then return true end
         local st = h:GetState()
         return st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown
     end
@@ -2107,6 +2531,7 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     -- 追踪线 & 音效
     local TracerFolder = Workspace:FindFirstChild("__MoonTracers") or Instance.new("Folder", Workspace)
     TracerFolder.Name = "__MoonTracers"
+    
     local function createTracer(fromPos, toPos, color, width, duration)
         if not State.TracerEnabled then return end
         local a0 = Instance.new("Attachment", TracerFolder); a0.WorldPosition = fromPos
@@ -2120,6 +2545,7 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         local life = duration or State.TracerDuration
         Debris:AddItem(beam, life); Debris:AddItem(a0, life); Debris:AddItem(a1, life)
     end
+    
     local function playHitSound()
         if not State.HitSoundEnabled then return end
         pcall(function()
@@ -2132,6 +2558,7 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     -- 穿墙解算
     local RayParams = RaycastParams.new()
     RayParams.FilterType, RayParams.IgnoreWater = Enum.RaycastFilterType.Exclude, true
+    
     local function Resolve(fromPos, toPos, spread, radius)
         local dir, dist = toPos - fromPos, (toPos - fromPos).Magnitude
         if dist < 0.1 then return fromPos, toPos, true end
@@ -2149,17 +2576,20 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         return nil, nil, false
     end
 
-    -- 找敌人 & 开火
+    -- 找敌人（取消了所有的 not isTeam(p) 判断）
     local function getClosestEnemy()
-        local _, myHRP = getMyChar(); if not myHRP then return nil, nil end
+        local _, myHRP = getMyChar()
+        if not myHRP then return nil, nil end
         local best, bestDist, bestHead = nil, math.huge, nil
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and not isTeam(p) and isAlive(p) and not shouldIgnore(p) then
+            if p ~= LocalPlayer and isAlive(p) and not shouldIgnore(p) then
                 local c = p.Character
                 local hrp, head = c and c:FindFirstChild("HumanoidRootPart"), c and c:FindFirstChild("Head")
                 if hrp and head then
                     local d = (hrp.Position - myHRP.Position).Magnitude
-                    if d <= State.MaxDistance and d < bestDist then bestDist, best, bestHead = d, p, head end
+                    if d <= State.MaxDistance and d < bestDist then
+                        bestDist, best, bestHead = d, p, head
+                    end
                 end
             end
         end
@@ -2169,47 +2599,64 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     local RELOAD_RETRY_INTERVAL, AMMO_STUCK_THRESHOLD = 0.6, 1.5
     local function fireAt(target, targetHead)
         if isRagdoll() then return end
-        local now = tick(); if now - State.LastFire < State.FireRate then return end
-        local _, myHRP, myHead = getMyChar(); if not myHRP or not myHead then return end
+        local now = tick()
+        if now - State.LastFire < State.FireRate then return end
+        local _, myHRP, myHead = getMyChar()
+        if not myHRP or not myHead then return end
+        
         local ok, tool = pcall(ClientTools.GetLocalEquippedTool)
         if not ok or not tool or not tool.toolState then return end
         local ts = tool.toolState
+        
         if State.LastToolId ~= tool.toolId then
             State.LastToolId, State.ReloadRetryAt, State.LastAmmo, State.LastAmmoChangeAt = tool.toolId, 0, nil, now
         end
+        
         local curAmmo = tonumber(ts.ammo)
-        if curAmmo ~= State.LastAmmo then State.LastAmmo, State.LastAmmoChangeAt = curAmmo, now
+        if curAmmo ~= State.LastAmmo then
+            State.LastAmmo, State.LastAmmoChangeAt = curAmmo, now
         elseif now - State.LastAmmoChangeAt > AMMO_STUCK_THRESHOLD then
             State.LastAmmoChangeAt = now
             if now >= State.ReloadRetryAt then
                 State.ReloadRetryAt = now + RELOAD_RETRY_INTERVAL
-                pcall(fireServer, "reload", tool.toolId); pcall(fireServer, "chamber", tool.toolId)
+                pcall(fireServer, "reload", tool.toolId)
+                pcall(fireServer, "chamber", tool.toolId)
             end
             return
         end
+        
         if curAmmo == nil or ts.totalAmmo == nil then return end
         if curAmmo <= 0 then
             if now >= State.ReloadRetryAt then
                 State.ReloadRetryAt = now + RELOAD_RETRY_INTERVAL
-                if (tonumber(ts.totalAmmo) or 0) > 0 then pcall(fireServer, "reload", tool.toolId); pcall(fireServer, "chamber", tool.toolId) end
+                if (tonumber(ts.totalAmmo) or 0) > 0 then
+                    pcall(fireServer, "reload", tool.toolId)
+                    pcall(fireServer, "chamber", tool.toolId)
+                end
             end
             return
         end
+        
         if ts.reloading == true then return end
-        local resolvedOrigin, resolvedTarget, okR = Resolve(myHead.Position,                targetHead.Position, State.WallSpread, targetHead.Size.Magnitude)
+        
+        local resolvedOrigin, resolvedTarget, okR = Resolve(myHead.Position, targetHead.Position, State.WallSpread, targetHead.Size.Magnitude)
         if not okR then return end
+        
         local bulletId = nuid()
         local shootCF = MathUtil.CompressCFrame(CFrame.new(resolvedOrigin, resolvedTarget))
         fireServer("shoot", tool.toolId, shootCF, { { bulletId, shootCF } })
+        
         local dir = resolvedTarget - resolvedOrigin
         local unit = dir.Magnitude > 0.001 and dir.Unit or myHRP.CFrame.LookVector
         local muzzle = tool.projectile and tool.projectile.muzzleVelocity
         local speed = type(muzzle) == "number" and muzzle > 0 and muzzle / 0.28 or 1600
+        
         fireServer("registerProjectileHits", bulletId, tool.toolId, {
             { massLimit = 5, hit = targetHead, position = resolvedTarget, normal = -unit, material = targetHead.Material or Enum.Material.Plastic,
               distance = dir.Magnitude, collisionPoint = resolvedTarget, direction = unit, speed = speed,
               source = { sourceType = "Bullet", sourceId = bulletId, sourceToolId = tool.toolId, sourcePlayerId = userId } },
         })
+        
         playHitSound()
         createTracer(resolvedOrigin, resolvedTarget, State.TracerColor, State.TracerWidth, State.TracerDuration)
         State.LastFire = now
@@ -2226,14 +2673,24 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         end)
     end
 
-    -- ═══════ 控件构建（挂载到你传入的 Tab 上）═══════
+    -- ═══════ 控件构建 ═══════
     local Left  = Tab:AddLeftGroupbox("战斗")
     local Right = Tab:AddRightGroupbox("参数")
 
     Left:AddToggle("Ragebot", { Text = "开启愤怒机器人", Default = false, Callback = function(v) State.Ragebot = v end })
     Left:AddToggle("Wallbang", { Text = "穿墙射击", Default = true, Callback = function(v) State.Wallbang = v end })
-    Left:AddToggle("TeamCheck", { Text = "忽略队友", Default = true, Callback = function(v) State.TeamCheck = v end })
-    Left:AddToggle("IgnoreStates", { Text = "忽略倒地 / 被击倒 / 被抓", Default = true, Callback = function(v) State.IgnoreCrawl, State.IgnoreKnock, State.IgnoreGrab = v, v, v end })
+    
+    -- 彻底删除了这里原本的“忽略队友” Toggle
+
+    Left:AddToggle("IgnoreStates", { 
+        Text = "忽略倒地 / 被击倒 / 被抓", 
+        Default = true, 
+        Callback = function(v) 
+            State.IgnoreCrawl = v
+            State.IgnoreKnock = v
+            State.IgnoreGrab = v
+        end 
+    })
 
     Right:AddSlider("MaxDistance", { Text = "最大攻击距离", Default = 5000, Min = 50, Max = 20000, Rounding = 0, Suffix = " 米", Callback = function(v) State.MaxDistance = v end })
     Right:AddSlider("FireRate", { Text = "射击间隔（秒）", Default = 0.05, Min = 0.02, Max = 0.5, Rounding = 2, Callback = function(v) State.FireRate = v end })
@@ -2261,6 +2718,7 @@ end
 
 -- ═══════════ 调用它，挂载到你的 jqr 标签 ═══════════
 SetupRagebot(Tabs.jqr)
+--******-------
 --******-------
 local jxGroup = Tabs.jx:AddLeftGroupbox("远程击杀")
 
@@ -3058,211 +3516,22 @@ ghRight:AddSlider("Aura_Revive_Interval", {
 })
 
 ghRight:AddDivider()
--- ==================== 瞄准页 ====================
-local AimConfig = {
-    Enabled = false, BulletTrack = false, FOV = 200, Smoothness = 0.15,
-    Prediction = 0.12, BulletSpeed = 1500, BulletDrop = 0, WallCheck = true,
-    ShowFOV = false, ShowTracer = true, AimPart = "Head", TeamCheck = true, JumpPrediction = true,
-}
+-- ==================== 瞄准页（仅子弹追踪） ====================
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
-local aimFOVCircle = Drawing.new("Circle")
-aimFOVCircle.Visible = false
-aimFOVCircle.Color = Color3.fromRGB(255, 50, 50)
-aimFOVCircle.Thickness = 1.5
-aimFOVCircle.Filled = false
-aimFOVCircle.Transparency = 0.4
-aimFOVCircle.NumSides = 64
-aimFOVCircle.Radius = AimConfig.FOV
-aimFOVCircle.Position = Camera.ViewportSize / 2
-
-local aimTracer = Drawing.new("Line")
-aimTracer.Visible = false
-aimTracer.Color = Color3.fromRGB(255, 50, 50)
-aimTracer.Thickness = 1.5
-aimTracer.Transparency = 0.4
-aimTracer.From = Camera.ViewportSize / 2
-aimTracer.To = Camera.ViewportSize / 2
-
-local aimTargetPart = nil
-local mainConn = nil
-
-local function findClosestPlayer()
-    local center = Camera.ViewportSize / 2
-    local best, bestDist = nil, AimConfig.FOV
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            local hrpX = player.Character:FindFirstChild("HumanoidRootPart")
-            if humanoid and hrpX and humanoid.Health > 0 then
-                if not (AimConfig.TeamCheck and player.Team and player.Team == LocalPlayer.Team) then
-                    local part = player.Character:FindFirstChild(AimConfig.AimPart)
-                        or player.Character:FindFirstChild("Head") or hrpX
-                    if part then
-                        local sp, vis = Camera:WorldToViewportPoint(part.Position)
-                        if vis and sp.Z < 1000 then
-                            local sd = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                            if sd < bestDist then best, bestDist = part, sd end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return best
-end
-
-local function isWallHit(part)
-    if not AimConfig.WallCheck then return false end
-    local origin = Camera.CFrame.Position
-    local rayP = RaycastParams.new()
-    rayP.FilterType = Enum.RaycastFilterType.Exclude
-    rayP.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    local result = workspace:Raycast(origin, part.Position - origin, rayP)
-    if result and not result.Instance:IsDescendantOf(part.Parent) then return true end
-    return false
-end
-
-local function doCameraAim()
-    if not aimTargetPart or not aimTargetPart.Parent then return end
-    local humX = aimTargetPart.Parent:FindFirstChildOfClass("Humanoid")
-    if not humX or humX.Health <= 0 then return end
-    if isWallHit(aimTargetPart) then return end
-    local dist = (aimTargetPart.Position - Camera.CFrame.Position).Magnitude
-    local time = dist / math.max(AimConfig.BulletSpeed, 100)
-    local vel = Vector3.zero
-    local tHrp = aimTargetPart.Parent:FindFirstChild("HumanoidRootPart")
-    if tHrp then vel = tHrp.AssemblyLinearVelocity end
-    local predictPos = aimTargetPart.Position + vel * AimConfig.Prediction
-    local dropOffset = Vector3.new(0, -AimConfig.BulletDrop * time * time, 0)
-    local jumpOff = Vector3.zero
-    if AimConfig.JumpPrediction and tHrp and tHrp.AssemblyLinearVelocity.Y > 10 then
-        jumpOff = Vector3.new(0, tHrp.AssemblyLinearVelocity.Y * AimConfig.Prediction * 0.5, 0)
-    end
-    local targetPos = predictPos + dropOffset + jumpOff
-    local targetCF = CFrame.new(Camera.CFrame.Position, targetPos)
-    if AimConfig.Smoothness >= 1 then Camera.CFrame = targetCF
-    else Camera.CFrame = Camera.CFrame:Lerp(targetCF, AimConfig.Smoothness) end
-end
-
-local botGroup = Tabs.bot:AddLeftGroupbox("自瞄")
-
-botGroup:AddToggle("Aim_Enable", {
-    Text = "🎯 自瞄总开关",
-    Default = false,
-    Tooltip = "暴力Camera自瞄，直接控制视角锁定目标",
-    Callback = function(state)
-        AimConfig.Enabled = state
-        if state then
-            if not mainConn then
-                mainConn = RunService.RenderStepped:Connect(function()
-                    if not AimConfig.Enabled then
-                        aimTargetPart = nil
-                        aimFOVCircle.Visible = false
-                        aimTracer.Visible = false
-                        return
-                    end
-                    aimFOVCircle.Position = Camera.ViewportSize / 2
-                    aimFOVCircle.Radius = AimConfig.FOV
-                    aimFOVCircle.Visible = AimConfig.ShowFOV
-                    aimTargetPart = findClosestPlayer()
-                    doCameraAim()
-                    if aimTargetPart and aimTargetPart.Parent then
-                        local sp, vis = Camera:WorldToViewportPoint(aimTargetPart.Position)
-                        if vis then
-                            aimTracer.Visible = AimConfig.ShowTracer
-                            aimTracer.From = Camera.ViewportSize / 2
-                            aimTracer.To = Vector2.new(sp.X, sp.Y)
-                        else aimTracer.Visible = false end
-                    else aimTracer.Visible = false end
-                end)
-            end
-        else
-            if mainConn then mainConn:Disconnect() mainConn = nil end
-            aimTargetPart = nil
-            aimFOVCircle.Visible = false
-            aimTracer.Visible = false
-        end
-    end,
-})
-
-botGroup:AddSlider("Aim_FOV", {
-    Text = "🎯 自瞄FOV范围",
-    Default = 200, Min = 20, Max = 1000, Rounding = 0,
-    Callback = function(v) AimConfig.FOV = v; aimFOVCircle.Radius = v end,
-})
-
-botGroup:AddSlider("Aim_Smooth", {
-    Text = "🔘 平滑系数",
-    Default = 0.15, Min = 0.01, Max = 1, Rounding = 2,
-    Callback = function(v) AimConfig.Smoothness = v end,
-})
-
-botGroup:AddSlider("Aim_Predict", {
-    Text = "⚡ 预判强度",
-    Default = 0.12, Min = 0, Max = 1, Rounding = 2,
-    Callback = function(v) AimConfig.Prediction = v end,
-})
-
-botGroup:AddSlider("Aim_BulletSpeed", {
-    Text = "🔫 子弹速度",
-    Default = 1500, Min = 100, Max = 5000, Rounding = 0,
-    Callback = function(v) AimConfig.BulletSpeed = v end,
-})
-
-botGroup:AddSlider("Aim_BulletDrop", {
-    Text = "📉 弹道下坠补偿",
-    Default = 0, Min = 0, Max = 200, Rounding = 0,
-    Callback = function(v) AimConfig.BulletDrop = v end,
-})
-
-botGroup:AddDropdown("Aim_Part", {
-    Text = "🎯 瞄准部位",
-    Values = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"},
-    Default = 1,
-    Multi = false,
-    Callback = function(option) AimConfig.AimPart = option end,
-})
-
-botGroup:AddToggle("Aim_Wall", {
-    Text = "🧱 掩体判断",
-    Default = true,
-    Callback = function(state) AimConfig.WallCheck = state end,
-})
-
-botGroup:AddToggle("Aim_ShowFOV", {
-    Text = "⭕ 显示FOV圆圈",
-    Default = false,
-    Callback = function(state) AimConfig.ShowFOV = state end,
-})
-
-botGroup:AddToggle("Aim_ShowTracer", {
-    Text = "📏 显示自瞄射线",
-    Default = true,
-    Callback = function(state) AimConfig.ShowTracer = state end,
-})
-
-botGroup:AddToggle("Aim_Team", {
-    Text = "👥 区分队友",
-    Default = true,
-    Callback = function(state) AimConfig.TeamCheck = state end,
-})
-
-botGroup:AddToggle("Aim_Jump", {
-    Text = "🦘 跳跃预判",
-    Default = true,
-    Callback = function(state) AimConfig.JumpPrediction = state end,
-})
-
--- ==================== 子弹追踪 ====================
 local btHbSize = 8
 local btHbConn = nil
+
 local function btExpandPlayer(player)
     if player == LocalPlayer then return end
-    if AimConfig.TeamCheck and player.Team and player.Team == LocalPlayer.Team then return end
-    local char = player.Character; if not char then return end
+    local char = player.Character
+    if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid or humanoid.Health <= 0 then return end
-    local hrpX = char:FindFirstChild("HumanoidRootPart"); if not hrpX then return end
+    local hrpX = char:FindFirstChild("HumanoidRootPart")
+    if not hrpX then return end
     local size = math.clamp(btHbSize, 0, 100)
     pcall(function()
         hrpX.Size = Vector3.new(size, size, size)
@@ -3274,28 +3543,31 @@ local function btExpandPlayer(player)
 end
 
 local function btResetPlayer(player)
-    local char = player.Character; if not char then return end
-    local hrpX = char:FindFirstChild("HumanoidRootPart"); if not hrpX then return end
+    local char = player.Character
+    if not char then return end
+    local hrpX = char:FindFirstChild("HumanoidRootPart")
+    if not hrpX then return end
     pcall(function()
-        hrpX.Size = Vector3.new(2, 2, 1); hrpX.Transparency = 0
-        hrpX.Color = Color3.fromRGB(163,162,165); hrpX.Material = Enum.Material.Plastic
+        hrpX.Size = Vector3.new(2, 2, 1)
+        hrpX.Transparency = 0
+        hrpX.Color = Color3.fromRGB(163, 162, 165)
+        hrpX.Material = Enum.Material.Plastic
         hrpX.CanCollide = true
     end)
 end
 
-local btGroup = Tabs.bot:AddRightGroupbox("子弹追踪")
+local btGroup = Tabs.bot:AddLeftGroupbox("范围")
 
 btGroup:AddToggle("BT_Enable", {
-    Text = "💣 子弹追踪总开关",
+    Text = "范围",
     Default = false,
     Tooltip = "扩大敌人碰撞箱",
     Callback = function(state)
-        AimConfig.BulletTrack = state
         if state then
             if not btHbConn then
                 btHbConn = RunService.Heartbeat:Connect(function()
-                    if AimConfig.BulletTrack then
-                        for _, p in ipairs(Players:GetPlayers()) do btExpandPlayer(p) end
+                    for _, p in ipairs(Players:GetPlayers()) do
+                        btExpandPlayer(p)
                     end
                 end)
             end
@@ -3303,22 +3575,67 @@ btGroup:AddToggle("BT_Enable", {
                 if player ~= LocalPlayer then
                     player.CharacterAdded:Connect(function()
                         task.wait(1)
-                        if AimConfig.BulletTrack then btExpandPlayer(player) end
+                        btExpandPlayer(player)
                     end)
                 end
             end
         else
-            if btHbConn then btHbConn:Disconnect() btHbConn = nil end
-            for _, p in ipairs(Players:GetPlayers()) do btResetPlayer(p) end
+            if btHbConn then
+                btHbConn:Disconnect()
+                btHbConn = nil
+            end
+            for _, p in ipairs(Players:GetPlayers()) do
+                btResetPlayer(p)
+            end
         end
     end,
 })
 
 btGroup:AddSlider("BT_Size", {
-    Text = "📦 判定箱大小",
+    Text = "范围",
     Default = 8, Min = 0, Max = 100, Rounding = 0,
     Callback = function(value) btHbSize = value end,
 })
+-- ==================== 瞄准页（仅子弹追踪） ====================
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local btHbSize = 8
+local btHbConn = nil
+
+local function btExpandPlayer(player)
+    if player == LocalPlayer then return end
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    local hrpX = char:FindFirstChild("HumanoidRootPart")
+    if not hrpX then return end
+    local size = math.clamp(btHbSize, 0, 100)
+    pcall(function()
+        hrpX.Size = Vector3.new(size, size, size)
+        hrpX.Transparency = 0.85
+        hrpX.Color = Color3.fromRGB(190, 190, 190)
+        hrpX.Material = Enum.Material.Neon
+        hrpX.CanCollide = false
+    end)
+end
+
+local function btResetPlayer(player)
+    local char = player.Character
+    if not char then return end
+    local hrpX = char:FindFirstChild("HumanoidRootPart")
+    if not hrpX then return end
+    pcall(function()
+        hrpX.Size = Vector3.new(2, 2, 1)
+        hrpX.Transparency = 0
+        hrpX.Color = Color3.fromRGB(163, 162, 165)
+        hrpX.Material = Enum.Material.Plastic
+        hrpX.CanCollide = true
+    end)
+end
+
 -- ==================== zj 标签：子追静默瞄准（Obsidian 格式） ====================
 
 -- 全局白名单，jqr/bot/fz 也读这个
