@@ -1,4 +1,4 @@
--- =================== 全局屏蔽日志（兼容版） ====================
+-- =================== 全局屏蔽日志（兼容版） ===================
 do
     local ok1 = pcall(function() print = function() end end)
     local ok2 = pcall(function() warn = function() end end)
@@ -160,12 +160,13 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- ==================== 加载 Obsidian UI（代理链接） ====================
-local repo = "https://ghproxy.net/https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
-local Options = Library.Options
 
+local Options = Library.Options
+local Toggles = Library.Toggles
 -- ==================== 紫色主题 ====================
 Library.Scheme.FontColor = Color3.fromRGB(190, 120, 255)
 Library.Scheme.SecondaryFontColor = Color3.fromRGB(160, 95, 220)
