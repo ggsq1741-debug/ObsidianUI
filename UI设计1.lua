@@ -190,15 +190,15 @@ local Window = Library:CreateWindow({
     MobileButtonsSide = "f",
 })
 
--- 背景图片代码
--- 背景图片代码
-Window:SetBackgroundImage("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/73bb4309-492f-4ecd-964f-7aa362722299.png")
+Window:SetBackgroundImage("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/33490c2c-02d8-4dc8-b24a-0e0478a45b8f.png")
 Window.BackgroundTransparency = 0.9
 Window:SetCornerRadius(100) 
 -- ==================== 创建所有标签页 ====================
 local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
+    jw   = Window:AddTab("键位修改", "keyboard"),
+    flup   = Window:AddTab("防录屏设置选项", "rbxassetid://7733655834"),
     zx   = Window:AddTab("准心设置", "rbxassetid://7733666258"),
     wsj   = Window:AddTab("万圣节功能", "rbxassetid://7734058599"),
     key   = Window:AddTab("万圣节刷钥匙", "rbxassetid://7733965118"),
@@ -209,7 +209,6 @@ local Tabs = {
     jx   = Window:AddTab("远程击杀", "crown"),
     fz  = Window:AddTab("辅助瞄准进阶", "crosshair"),
     gh   = Window:AddTab("光环设置", "crown"),
-    bot  = Window:AddTab("范围", "target"),
     zj  = Window:AddTab("子追静默瞄准", "target"),
     ESP  = Window:AddTab("ESP", "eye"),
     ESPP = Window:AddTab("ESP2", "eye"),
@@ -759,6 +758,422 @@ miscGroup:AddButton({
         end)
     end,
 })
+-- ==================== 键位修改（拖拽 + 缩放 + 一键重置） ====================
+do
+    local uis = game:GetService("UserInputService")
+    local run = game:GetService("RunService")
+    local lp = game:GetService("Players").LocalPlayer
+
+    local active = false
+    local dragging = false
+    local draggingObj = nil
+    local startPos = nil
+    local touchStart = nil
+    local latestPos = nil
+    local highlight = nil
+
+    -- ⭐ 选中 + 缩放状态
+    local selectedObj = nil
+    local selectedHL = nil
+    local originalSizes = {}
+    local objScales = {}
+    local scaleVal = 1.0
+
+    -- ⭐ 记录原始位置，用于一键重置
+    local originalPositions = {}
+
+    local function getTouchProfiles()
+        local pg = lp:FindFirstChild("PlayerGui")
+        if not pg then return nil end
+        local screen = pg:FindFirstChild("InputButtonsScreen")
+        if not screen then return nil end
+        return screen:FindFirstChild("TouchProfiles")
+    end
+
+    -- ⭐ 清理所有高亮框（内存引用 + 残留 UIStroke 兜底）
+    local function clearAllHighlights()
+        if highlight then pcall(function() highlight:Destroy() end); highlight = nil end
+        if selectedHL then pcall(function() selectedHL:Destroy() end); selectedHL = nil end
+
+        local profiles = getTouchProfiles()
+        if profiles then
+            for _, v in ipairs(profiles:GetDescendants()) do
+                if v:IsA("GuiObject") then
+                    for _, c in ipairs(v:GetChildren()) do
+                        if c:IsA("UIStroke") and (c.Name == "__DragHL" or c.Name == "__SelHL") then
+                            pcall(function() c:Destroy() end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 暴力拆除父级限制，防止拖出去被弹回
+    local function breakLayout(obj)
+        pcall(function()
+            local parent = obj.Parent
+            if parent then
+                for _, child in ipairs(parent:GetChildren()) do
+                    if child:IsA("UIListLayout") or child:IsA("UIGridLayout") or child:IsA("UIPositionConstraint") then
+                        child:Destroy()
+                    end
+                end
+            end
+            for _, child in ipairs(obj:GetChildren()) do
+                if child:IsA("UIAspectRatioConstraint") or child:IsA("UIPositionConstraint") then
+                    child:Destroy()
+                end
+            end
+        end)
+    end
+
+    local function findButton(pos)
+        local profiles = getTouchProfiles()
+        if not profiles then return nil end
+        for _, v in ipairs(profiles:GetDescendants()) do
+            if v:IsA("GuiObject") and v.Visible then
+                local ap, sz = v.AbsolutePosition, v.AbsoluteSize
+                if sz.X >= 20 and sz.Y >= 20 and sz.X <= 250 and sz.Y <= 250 then
+                    if pos.X >= ap.X and pos.X <= ap.X + sz.X and pos.Y >= ap.Y and pos.Y <= ap.Y + sz.Y then
+                        return v
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    local function applyPos()
+        if not dragging or not draggingObj or not draggingObj.Parent then return end
+        if not latestPos or not touchStart or not startPos then return end
+        local delta = latestPos - touchStart
+        pcall(function()
+            draggingObj.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end)
+    end
+
+    local function applyScale(obj, scale)
+        if not obj or not obj.Parent then return end
+        if not originalSizes[obj] then
+            originalSizes[obj] = obj.Size
+        end
+        local o = originalSizes[obj]
+        pcall(function()
+            obj.Size = UDim2.new(
+                o.X.Scale * scale, math.floor(o.X.Offset * scale + 0.5),
+                o.Y.Scale * scale, math.floor(o.Y.Offset * scale + 0.5)
+            )
+        end)
+    end
+
+    local function selectObj(obj)
+        if selectedHL then pcall(function() selectedHL:Destroy() end); selectedHL = nil end
+        selectedObj = obj
+        if not obj then return end
+        if not originalSizes[obj] then originalSizes[obj] = obj.Size end
+        if not objScales[obj] then objScales[obj] = 1.0 end
+        selectedHL = Instance.new("UIStroke", obj)
+        selectedHL.Name = "__SelHL"
+        selectedHL.Color = Color3.fromRGB(255, 200, 0)
+        selectedHL.Thickness = 3
+        selectedHL.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    end
+
+    local function beginDrag(pos)
+        if not active or dragging then return end
+        local obj = findButton(pos)
+        if not obj then return end
+        if not originalPositions[obj] then
+            originalPositions[obj] = obj.Position
+        end
+        breakLayout(obj)
+        dragging = true
+        draggingObj = obj
+        startPos = obj.Position
+        touchStart = pos
+        latestPos = pos
+        if highlight then highlight:Destroy() end
+        highlight = Instance.new("UIStroke", obj)
+        highlight.Name = "__DragHL"
+        highlight.Color = Color3.fromRGB(0, 255, 130)
+        highlight.Thickness = 3
+        highlight.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+        selectObj(obj)
+    end
+
+    local function endDrag()
+        if highlight then pcall(function() highlight:Destroy() end); highlight = nil end
+        dragging = false
+        draggingObj = nil
+        startPos = nil
+        touchStart = nil
+        latestPos = nil
+    end
+
+    -- ==================== 输入事件 ====================
+    uis.InputBegan:Connect(function(input, gameProcessed)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            beginDrag(input.Position)
+        end
+    end)
+
+    uis.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+            latestPos = input.Position
+            applyPos()
+        end
+    end)
+
+    uis.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if dragging then endDrag() end
+        end
+    end)
+
+    run.RenderStepped:Connect(function()
+        applyPos()
+    end)
+
+    -- ==================== Obsidian UI 控件 ====================
+    local jwLeft  = Tabs.jw:AddLeftGroupbox("拖拽开关")
+    local jwRight = Tabs.jw:AddRightGroupbox("恢复设置")
+
+    jwLeft:AddToggle("EnableDrag", {
+        Text = "开启无延迟拖拽",
+        Default = false,
+        Callback = function(v)
+            active = v
+            if v then
+                clearAllHighlights()
+                Library:Notify({ Title = "已开启", Text = "点击按钮选中后可拖动滑块缩放", Duration = 3 })
+            else
+                endDrag()
+                selectObj(nil)
+                clearAllHighlights()
+                Library:Notify({ Title = "已关闭", Text = "拖拽已停止，高亮已清除", Duration = 3 })
+            end
+        end,
+    })
+
+    -- ⭐ 缩放设置
+    jwLeft:AddDivider()
+    jwLeft:AddLabel("缩放选中按钮")
+
+    jwLeft:AddSlider("BtnScale", {
+        Text = "缩放倍率",
+        Default = 1.0,
+        Min = 0.3,
+        Max = 3.0,
+        Rounding = 2,
+        Callback = function(v)
+            scaleVal = v
+            if selectedObj and selectedObj.Parent then
+                objScales[selectedObj] = v
+                applyScale(selectedObj, v)
+            end
+        end,
+    })
+
+    jwLeft:AddButton({
+        Text = "恢复选中按钮原始大小",
+        Func = function()
+            if not selectedObj or not selectedObj.Parent then
+                Library:Notify({ Title = "提示", Text = "请先点击一个按钮选中它", Duration = 2 })
+                return
+            end
+            if originalSizes[selectedObj] then
+                pcall(function() selectedObj.Size = originalSizes[selectedObj] end)
+            end
+            objScales[selectedObj] = 1.0
+            Library:Notify({ Title = "已恢复", Text = "选中按钮已恢复原始大小", Duration = 2 })
+        end,
+    })
+
+    jwLeft:AddButton({
+        Text = "取消选中",
+        Func = function()
+            selectObj(nil)
+        end,
+    })
+
+    -- ⭐ 恢复设置
+    jwRight:AddLabel("恢复设置")
+
+    jwRight:AddButton({
+        Text = "一键重置所有按钮",
+        Func = function()
+            local count = 0
+            for obj, pos in pairs(originalPositions) do
+                if obj and obj.Parent then
+                    pcall(function() obj.Position = pos end)
+                    count = count + 1
+                end
+            end
+            for obj, sz in pairs(originalSizes) do
+                if obj and obj.Parent then
+                    pcall(function() obj.Size = sz end)
+                end
+            end
+            table.clear(originalSizes)
+            table.clear(objScales)
+            scaleVal = 1.0
+            endDrag()
+            selectObj(nil)
+            clearAllHighlights()
+
+            Library:Notify({
+                Title = "重置成功",
+                Text = "已恢复 " .. tostring(count) .. " 个按钮到初始状态",
+                Duration = 3
+            })
+        end
+    })
+end
+local flupLeft = Tabs.flup:AddLeftGroupbox("核心功能")
+
+flupLeft:AddButton({
+    Text = "删除忍者图标和脚本",
+    Func = function()
+        local CoreGui = game:GetService("CoreGui")
+        local targetHash = "fdcc4aea07a75898254f573dbd0c67061fc06e508fdd69b5dbfde0ba64913d0c"
+        local deleted = false
+
+        for _, child in ipairs(CoreGui:GetChildren()) do
+            if string.find(child.Name, targetHash, 1, true) then
+                local ok = pcall(function() child:Destroy() end)
+                if ok then deleted = true end
+            end
+        end
+
+        if not deleted then
+            for _, v in ipairs(CoreGui:GetDescendants()) do
+                if string.find(v.Name, targetHash, 1, true) then
+                    pcall(function() v:Destroy() end)
+                    deleted = true
+                end
+            end
+        end
+
+        if deleted then
+            Library:Notify({ Title = "清理成功", Text = "已删除目标核心文件夹", Duration = 3 })
+        else
+            Library:Notify({ Title = "提示", Text = "未找到该目标，可能已被清理", Duration = 3 })
+        end
+    end,
+})
+
+local flupRight = Tabs.flup:AddRightGroupbox("范围")
+
+local btHbSize = 8
+local btHbConn = nil
+local btCharConns = {} 
+
+local function btExpandPlayer(player)
+    if player == LocalPlayer then return end
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    local hrpX = char:FindFirstChild("HumanoidRootPart")
+    if not hrpX then return end
+    
+    local size = math.clamp(btHbSize, 1, 100)
+    pcall(function()
+        hrpX.Size = Vector3.new(size, size, size)
+        hrpX.Transparency = 1             -- ⭐ 这里改成了 1，完全透明
+        hrpX.Color = Color3.fromRGB(190, 190, 190)
+        hrpX.Material = Enum.Material.Neon
+        hrpX.CanCollide = false
+    end)
+end
+
+local function btResetPlayer(player)
+    if player == LocalPlayer then return end 
+    local char = player.Character
+    if not char then return end
+    local hrpX = char:FindFirstChild("HumanoidRootPart")
+    if not hrpX then return end
+    pcall(function()
+        hrpX.Size = Vector3.new(2, 2, 1) 
+        hrpX.Transparency = 0             -- ⭐ 这里改成了 0，防止关闭后敌人身体隐形
+        hrpX.Color = Color3.fromRGB(163, 162, 165)
+        hrpX.Material = Enum.Material.Plastic
+        hrpX.CanCollide = true
+    end)
+end
+
+local function btBindPlayer(player)
+    if player == LocalPlayer then return end
+    if btCharConns[player] then
+        btCharConns[player]:Disconnect()
+        btCharConns[player] = nil
+    end
+    btCharConns[player] = player.CharacterAdded:Connect(function()
+        task.wait(1)
+        if btHbConn then
+            btExpandPlayer(player)
+        end
+    end)
+end
+
+flupRight:AddToggle("BT_Enable", {
+    Text = "范围",
+    Default = false,
+    Callback = function(state)
+        if state then
+            if btHbConn then btHbConn:Disconnect() end
+            for _, conn in pairs(btCharConns) do pcall(function() conn:Disconnect() end) end
+            table.clear(btCharConns)
+
+            btHbConn = RunService.Heartbeat:Connect(function()
+                for _, p in ipairs(Players:GetPlayers()) do
+                    btExpandPlayer(p)
+                end
+            end)
+
+            for _, player in ipairs(Players:GetPlayers()) do
+                btBindPlayer(player)
+            end
+            
+            if not _G._BTPlayerAddedConn then
+                _G._BTPlayerAddedConn = Players.PlayerAdded:Connect(function(p)
+                    if btHbConn then
+                        btBindPlayer(p)
+                    end
+                end)
+            end
+        else
+            if btHbConn then
+                btHbConn:Disconnect()
+                btHbConn = nil
+            end
+            for _, conn in pairs(btCharConns) do pcall(function() conn:Disconnect() end) end
+            table.clear(btCharConns)
+            
+            if _G._BTPlayerAddedConn then
+                _G._BTPlayerAddedConn:Disconnect()
+                _G._BTPlayerAddedConn = nil
+            end
+
+            for _, p in ipairs(Players:GetPlayers()) do
+                btResetPlayer(p)
+            end
+        end
+    end,
+})
+
+flupRight:AddSlider("BT_Size", {
+    Text = "范围大小",
+    Default = 8, Min = 1, Max = 100, Rounding = 0,
+    Callback = function(value) btHbSize = value end,
+})
+-- ======================================================
 -- ==================== 屏幕准星（黑曜石UI · Tabs.zx） ====================
 do
     local RS  = game:GetService("RunService")
@@ -1802,8 +2217,13 @@ do
         ["PHONK"]     = { url = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/PHONK.ogg",     file = "PHONK.ogg"     },
         ["挂哥进行曲"] = { url = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/beibeibei.ogg", file = "挂哥进行曲.ogg" },
         ["10年老兵进行曲"]      = { url = "https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/nklw.ogg",      file = "10年老兵进行曲.ogg"      },
+        ["美国人"]     = { url = "https://raw.githubusercontent.com/ggsq1741-debug/BAL/refs/heads/main/%E7%BE%8E%E5%9B%BD%E4%BA%BA.ogg", file = "track_4.ogg" },
+        ["游京"]       = { url = "https://raw.githubusercontent.com/ggsq1741-debug/BAL/refs/heads/main/%E6%B8%B8%E4%BA%AC.ogg", file = "track_5.ogg" },
+        ["夜色"]       = { url = "https://raw.githubusercontent.com/ggsq1741-debug/BAL/refs/heads/main/%E5%A4%9C%E8%89%B2.ogg", file = "track_6.ogg" },
     }
-    local DEFAULT_TRACK = "挂哥进行曲"
+    
+    -- ⭐ 修改默认首次播放为「游京」
+    local DEFAULT_TRACK = "游京"
 
     local trackNames = {}
     for name in pairs(TRACKS) do table.insert(trackNames, name) end
@@ -1844,11 +2264,11 @@ do
         task.spawn(function()
             local content = download(track.url)
             if not content then
-                warn("[Music] ❌ 下载失败: " .. trackName .. "（链接可能 404 或被墙）")
+                warn("[Music] 下载失败: " .. trackName .. "（链接可能 404 或被墙）")
                 return
             end
             if string.sub(content, 1, 4) ~= "OggS" then
-                warn("[Music] ❌ 不是有效 ogg: " .. trackName)
+                warn("[Music] 不是有效 ogg: " .. trackName)
                 return
             end
 
@@ -1858,7 +2278,7 @@ do
                 return (getcustomasset or getsynasset)(track.file)
             end)
             if not okAsset or not assetId then
-                warn("[Music] ❌ getcustomasset 失败: " .. trackName)
+                warn("[Music]  getcustomasset 失败: " .. trackName)
                 return
             end
 
@@ -1874,7 +2294,7 @@ do
             while snd.TimeLength <= 0 and os.clock() - t0 < 5 do
                 task.wait(0.05)
             end
-            print("[Music] ✅ 加载完成: " .. trackName .. " | 时长 " .. math.floor(snd.TimeLength) .. "s")
+            print("[Music]加载完成: " .. trackName .. " | 时长 " .. math.floor(snd.TimeLength) .. "s")
 
             if autoPlay then snd:Play() end
         end)
@@ -2770,7 +3190,7 @@ fcCamRight:AddSlider("CamStab_Smooth", {
     end,
 })
 -- ═══════════ 在这里定义 Ragebot 功能 + UI ═══════════
-local function SetupRagebot(Tab) -- 接收你传入的 Tab
+local function SetupRagebot(Tab)
     local Players           = game:GetService("Players")
     local RunService        = game:GetService("RunService")
     local Workspace         = game:GetService("Workspace")
@@ -2780,7 +3200,9 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     local LocalPlayer = Players.LocalPlayer
     local userId = LocalPlayer.UserId
 
-    -- 载入 Wanted 模块
+    -- 确保全局白名单表存在（与静默瞄准共用）
+    _G.WL = _G.WL or {}
+
     local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
     if not DevvFolder then return warn("[Ragebot] 未找到 Devv 模块") end
     local DevvModule = require(DevvFolder)
@@ -2792,7 +3214,6 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     local fireServer    = Network.FireServer
     local ClientTools   = require(ReplicatedStorage.Client.Wanted.Modules.ClientTools)
 
-    -- 状态表（彻底移除了 TeamCheck）
     local State = {
         Ragebot = false, Wallbang = true, IgnoreCrawl = true, IgnoreKnock = true, IgnoreGrab = true,
         LastFire = 0, FireRate = 0.05, MaxDistance = 5000, WallSpread = 30, Running = false, LoopConn = nil,
@@ -2801,7 +3222,6 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         LastToolId = nil, LastAmmo = nil, LastAmmoChangeAt = 0, ReloadRetryAt = 0,
     }
 
-    -- 工具函数
     local function getMyChar()
         local c = LocalPlayer.Character
         return c, c and c:FindFirstChild("HumanoidRootPart"), c and c:FindFirstChild("Head")
@@ -2813,8 +3233,6 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         local h = c:FindFirstChildOfClass("Humanoid")
         return h and h.Health > 0
     end
-    
-    -- 删除了 isTeam 函数
     
     local function getProp(p, key)
         local CP = ClientPlayers.GetByPlayerId(p.UserId)
@@ -2841,7 +3259,6 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         return st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown
     end
 
-    -- 追踪线 & 音效
     local TracerFolder = Workspace:FindFirstChild("__MoonTracers") or Instance.new("Folder", Workspace)
     TracerFolder.Name = "__MoonTracers"
     
@@ -2868,7 +3285,6 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         end)
     end
 
-    -- 穿墙解算
     local RayParams = RaycastParams.new()
     RayParams.FilterType, RayParams.IgnoreWater = Enum.RaycastFilterType.Exclude, true
     
@@ -2889,13 +3305,12 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         return nil, nil, false
     end
 
-    -- 找敌人（取消了所有的 not isTeam(p) 判断）
     local function getClosestEnemy()
         local _, myHRP = getMyChar()
         if not myHRP then return nil, nil end
         local best, bestDist, bestHead = nil, math.huge, nil
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and isAlive(p) and not shouldIgnore(p) then
+            if p ~= LocalPlayer and isAlive(p) and not shouldIgnore(p) and not (_G.WL and _G.WL[p.Name]) then
                 local c = p.Character
                 local hrp, head = c and c:FindFirstChild("HumanoidRootPart"), c and c:FindFirstChild("Head")
                 if hrp and head then
@@ -2975,7 +3390,6 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         State.LastFire = now
     end
 
-    -- 主循环启动
     if not State.Running then
         State.Running = true
         State.LoopConn = RunService.Heartbeat:Connect(function()
@@ -2986,24 +3400,13 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
         end)
     end
 
-    -- ═══════ 控件构建 ═══════
+    -- ═══════ 黑曜石 UI 控件构建 ═══════
     local Left  = Tab:AddLeftGroupbox("战斗")
     local Right = Tab:AddRightGroupbox("参数")
 
     Left:AddToggle("Ragebot", { Text = "开启愤怒机器人", Default = false, Callback = function(v) State.Ragebot = v end })
     Left:AddToggle("Wallbang", { Text = "穿墙射击", Default = true, Callback = function(v) State.Wallbang = v end })
-    
-    -- 彻底删除了这里原本的“忽略队友” Toggle
-
-    Left:AddToggle("IgnoreStates", { 
-        Text = "忽略倒地 / 被击倒 / 被抓", 
-        Default = true, 
-        Callback = function(v) 
-            State.IgnoreCrawl = v
-            State.IgnoreKnock = v
-            State.IgnoreGrab = v
-        end 
-    })
+    Left:AddToggle("IgnoreStates", { Text = "忽略倒地 / 被击倒 / 被抓", Default = true, Callback = function(v) State.IgnoreCrawl, State.IgnoreKnock, State.IgnoreGrab = v, v, v end })
 
     Right:AddSlider("MaxDistance", { Text = "最大攻击距离", Default = 5000, Min = 50, Max = 20000, Rounding = 0, Suffix = " 米", Callback = function(v) State.MaxDistance = v end })
     Right:AddSlider("FireRate", { Text = "射击间隔（秒）", Default = 0.05, Min = 0.02, Max = 0.5, Rounding = 2, Callback = function(v) State.FireRate = v end })
@@ -3022,11 +3425,71 @@ local function SetupRagebot(Tab) -- 接收你传入的 Tab
     TracerBox:AddToggle("TracerEnabled", { Text = "显示弹道追踪线", Default = true, Callback = function(v) State.TracerEnabled = v end })
     TracerBox:AddSlider("TracerWidth", { Text = "追踪线宽度", Default = 0.25, Min = 0.05, Max = 1, Rounding = 2, Callback = function(v) State.TracerWidth = v end })
     TracerBox:AddSlider("TracerDuration", { Text = "追踪线持续时间", Default = 1, Min = 0.2, Max = 5, Rounding = 1, Suffix = " 秒", Callback = function(v) State.TracerDuration = v end })
-    TracerBox:AddDropdown("TracerColor", { Text = "追踪线颜色", Values = { "红色",  }, Default = 1, Multi = false,
+    TracerBox:AddDropdown("TracerColor", { Text = "追踪线颜色", Values = { "红色" }, Default = 1, Multi = false,
         Callback = function(v)
-            local map = { [1] = Color3.fromRGB(255, 80, 80), }
+            local map = { [1] = Color3.fromRGB(255, 80, 80) }
             State.TracerColor = map[v] or map[1]
         end })
+
+    -- ⭐ 动态白名单面板
+    local WL_Group = Tab:AddRightGroupbox("白名单")
+    local WL_Toggles = {} -- 记录每个玩家对应的 UI Toggle 对象
+
+    local function WL_AddFor(playerName)
+        if WL_Toggles[playerName] then return end
+        
+        -- 保持之前如果勾选过的状态
+        local isAlreadyWL = (_G.WL and _G.WL[playerName] == true)
+
+        local toggleObj = WL_Group:AddToggle("RageWL_" .. playerName, {
+            Text = playerName,
+            Default = isAlreadyWL,
+            Tooltip = "勾选后愤怒机器人不会攻击该玩家",
+            Callback = function(v)
+                _G.WL = _G.WL or {}
+                if v then
+                    _G.WL[playerName] = true
+                else
+                    _G.WL[playerName] = nil
+                end
+            end,
+        })
+        WL_Toggles[playerName] = toggleObj
+    end
+
+    local function WL_RemoveFor(playerName)
+        local toggleObj = WL_Toggles[playerName]
+        if toggleObj then
+            -- 销毁黑曜石 UI 控件并从 Toggles 表中移除
+            pcall(function() toggleObj:Destroy() end)
+            WL_Toggles[playerName] = nil
+            
+            -- 玩家都退出了，白名单里的记录也一起清掉，防止下次同名误伤
+            if _G.WL then
+                _G.WL[playerName] = nil 
+            end
+        end
+    end
+
+    -- 初始化当前房间的玩家
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then WL_AddFor(p.Name) end
+    end
+
+    -- 监听玩家加入
+    Players.PlayerAdded:Connect(function(p)
+        if p ~= LocalPlayer then
+            task.wait(0.5) -- 稍微延迟一下，防止玩家刚加载时名字不对
+            WL_AddFor(p.Name) 
+        end
+    end)
+
+    -- 监听玩家退出
+    Players.PlayerRemoving:Connect(function(p)
+        if p ~= LocalPlayer then 
+            WL_RemoveFor(p.Name) 
+        end
+    end)
 end
 
 -- ═══════════ 调用它，挂载到你的 jqr 标签 ═══════════
@@ -3167,13 +3630,11 @@ Players.PlayerRemoving:Connect(function(plr)
         PlayerDropdown:SetValues(getPlayerNames())
     end)
 end)
--- ============================================
--- 辅助瞄准（Obsidian 格式）
--- + 队伍阵营过滤 + 掩体检测 + FOV 圈
--- ============================================
+
 local function SetupAimAssist()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local UserInputService  = game:GetService("UserInputService")
+    local RunService        = game:GetService("RunService")
     local Players           = game:GetService("Players")
     local LocalPlayer       = Players.LocalPlayer
     local Camera            = workspace.CurrentCamera
@@ -3198,8 +3659,8 @@ local function SetupAimAssist()
         AimAssistModule = require(ReplicatedStorage.Client.Wanted.Objects.ClientTool.Components.Tools.Guns.AimAssist)
     end)
 
-    if not modulesOk then
-        Library:Notify({ Title = "辅助瞄准", Text = "游戏模块加载失败", Duration = 6 })
+    if not modulesOk or not AimAssistModule then
+        warn("[辅助瞄准] Wanted 模块加载失败，功能不可用")
         return
     end
 
@@ -3207,25 +3668,17 @@ local function SetupAimAssist()
     -- 状态
     -- ========================================
     local AA = {
-        Enabled        = false,
-        Part           = "Body",
-        SpeedX         = 2.7,
-        SpeedY         = 1,
-        PredictionX    = 2.8,
-        PredictionY    = 2.6,
-        IgnoreTeammate = true,
-        CampFilter     = "全部",
-        WallCheck      = true,
-        -- FOV 圈（唯一范围限制）
-        ShowFOV        = false,
-        FOVRadius      = 250,
-        FOVFixed       = true,
-        FOVColor       = Color3.fromRGB(190, 120, 255),
-        FOVThickness   = 1.5,
-        FOVTransparency= 0.3,
-        FOVSides       = 64,
+        Enabled = false, Part = "Body",
+        SpeedX = 2.7, SpeedY = 1,
+        PredictionX = 2.8, PredictionY = 2.6,
+        IgnoreTeammate = true, CampFilter = "全部",
+        WallCheck = true,
+        ShowFOV = false, FOVRadius = 250, FOVFixed = true,
+        FOVColor = Color3.fromRGB(190, 120, 255),
+        FOVThickness = 1.5, FOVTransparency = 0.3, FOVSides = 64,
     }
     local originalAimStep = AimAssistModule.Step
+    if type(originalAimStep) ~= "function" then originalAimStep = function() end end
 
     -- ========================================
     -- 工具函数
@@ -3298,7 +3751,10 @@ local function SetupAimAssist()
         return true
     end
 
+    -- ⭐ 白名单最高优先：勾上 = 直接跳过，不瞄
     local function isAllowedTarget(plr)
+        if _G.WL and _G.WL[plr.Name] == true then return false end
+
         if AA.CampFilter ~= "全部" then
             local camp = getCamp(plr)
             if AA.CampFilter == "仅警察" and camp ~= "police"    then return false end
@@ -3316,8 +3772,7 @@ local function SetupAimAssist()
     -- ========================================
     local function setAssistSensitivity(v)
         pcall(function()
-            local setting = SettingsData.settingDataByName
-                and SettingsData.settingDataByName.assistSensitivity
+            local setting = SettingsData.settingDataByName and SettingsData.settingDataByName.assistSensitivity
             if type(setting) == "table" then setting.defaultValue = v end
             if type(ClientSettings.Set) == "function" then
                 ClientSettings.Set("assistSensitivity", v)
@@ -3334,7 +3789,7 @@ local function SetupAimAssist()
     end
 
     -- ========================================
-    -- FOV 圈（Drawing）
+    -- FOV 圈
     -- ========================================
     local fovCircle = Drawing.new("Circle")
     fovCircle.Visible       = false
@@ -3357,10 +3812,7 @@ local function SetupAimAssist()
 
         if AA.ShowFOV and AA.Enabled then
             if AA.FOVFixed then
-                fovCircle.Position = Vector2.new(
-                    Camera.ViewportSize.X / 2,
-                    Camera.ViewportSize.Y / 2
-                )
+                fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
             else
                 local m = UserInputService:GetMouseLocation()
                 fovCircle.Position = Vector2.new(m.X, m.Y)
@@ -3372,9 +3824,6 @@ local function SetupAimAssist()
         pcall(updateFOVCircle)
     end)
 
-    -- ========================================
-    -- 瞄准核心（只按屏幕像素距离过滤，无 3D 距离限制）
-    -- ========================================
     local function aimStep(self, dt)
         local tool = self and self.tool
         local ts = tool and tool.toolState
@@ -3387,7 +3836,6 @@ local function SetupAimAssist()
         end
 
         local cFrame = cam.CFrame
-        local vp = cam.ViewportSize
         local sx, sy = getViewportCenter(cam)
         local bestScore, bestYaw, bestPitch = math.huge, nil, nil
 
@@ -3410,8 +3858,7 @@ local function SetupAimAssist()
                     local blocked = AA.WallCheck and checkWall(target) or false
                     if not blocked then
                         local predict = target.Position
-                            + (target.AssemblyLinearVelocity or Vector3.zero)
-                                * (AA.PredictionX * 0.01)
+                            + (target.AssemblyLinearVelocity or Vector3.zero) * (AA.PredictionX * 0.01)
                         local rel = cFrame:PointToObjectSpace(predict)
                         local mag = rel.Magnitude
                         if mag > 0.35 then
@@ -3422,7 +3869,6 @@ local function SetupAimAssist()
                                 local dx = sp.X - sx
                                 local dy = sp.Y - sy
                                 local pixDist = math.sqrt(dx * dx + dy * dy)
-                                -- 唯一范围限制：FOV 圈像素距离
                                 if pixDist <= AA.FOVRadius then
                                     local score = pixDist * pixDist
                                     if score < bestScore then
@@ -3454,186 +3900,209 @@ local function SetupAimAssist()
         end
     end
 
-    -- ========================================
-    -- Obsidian UI
-    -- ========================================
-    local aaLeft  = Tabs.fz:AddLeftGroupbox("辅助瞄准 · 功能")
-    local aaRight = Tabs.fz:AddRightGroupbox("辅助瞄准 · 参数")
-    local aaFov   = Tabs.fz:AddLeftGroupbox("辅助瞄准 · FOV 圈")
 
-    aaLeft:AddToggle("AA_Enable", {
+    local aaMain  = Tabs.fz:AddLeftGroupbox("辅助瞄准")
+    local aaRight = Tabs.fz:AddRightGroupbox("参数")
+    local aaFov   = Tabs.fz:AddLeftGroupbox("FOV 圈")
+    local aaTeam  = Tabs.fz:AddRightGroupbox("队伍阵营过滤")
+    local aaWall  = Tabs.fz:AddLeftGroupbox("掩体检测")
+
+    aaMain:AddToggle("AA_Enable", {
         Text = "启用辅助瞄准",
         Default = false,
         Tooltip = "开启后准星自动吸附敌人",
-        Callback = function(v)
-            AA.Enabled = v
-            if v then
-                AimAssistModule.Step = aimStep
-                Library:Notify({ Title = "辅助瞄准", Text = "已开启", Duration = 2 })
-            else
-                AimAssistModule.Step = originalAimStep
-                Library:Notify({ Title = "辅助瞄准", Text = "已关闭", Duration = 2 })
-            end
-            updateFOVCircle()
-        end,
-    })
+    }):OnChanged(function(v)
+        AA.Enabled = v
+        if v then
+            AimAssistModule.Step = aimStep
+        else
+            AimAssistModule.Step = originalAimStep
+        end
+        updateFOVCircle()
+    end)
 
-    aaLeft:AddDropdown("AA_Part", {
+    aaMain:AddDropdown("AA_Part", {
         Text = "瞄准部位",
         Values = { "Head", "Body" },
         Default = "Body",
         Multi = false,
-        Callback = function(v) AA.Part = v end,
-    })
+    }):OnChanged(function(v)
+        AA.Part = v
+    end)
 
-    aaLeft:AddDivider()
+    -- 参数
+    aaRight:AddSlider("AA_SpeedX", {
+        Text = "水平速度",
+        Min = 0.1, Max = 5, Default = 2.7, Rounding = 1,
+    }):OnChanged(function(v)
+        AA.SpeedX = v
+        setAssistSensitivity(v)
+    end)
 
-    aaLeft:AddToggle("AA_IgnoreTeam", {
-        Text = "忽略队友（仅「全部」阵营时生效）",
-        Default = true,
-        Tooltip = "选了具体阵营后此开关自动失效",
-        Callback = function(v) AA.IgnoreTeammate = v end,
-    })
+    aaRight:AddSlider("AA_SpeedY", {
+        Text = "垂直速度",
+        Min = 0.1, Max = 5, Default = 1, Rounding = 1,
+    }):OnChanged(function(v) AA.SpeedY = v end)
 
-    aaLeft:AddDropdown("AA_CampFilter", {
-        Text = "只吸附指定阵营",
-        Values = { "全部", "仅警察", "仅帮派", "仅平民" },
-        Default = "全部",
-        Multi = false,
-        Callback = function(v) AA.CampFilter = v end,
-    })
+    aaRight:AddSlider("AA_PredictionX", {
+        Text = "水平预判",
+        Min = 0, Max = 7, Default = 2.8, Rounding = 2,
+    }):OnChanged(function(v) AA.PredictionX = v end)
 
-    aaLeft:AddDivider()
-
-    aaLeft:AddToggle("AA_WallCheck", {
-        Text = "启用掩体检测",
-        Default = true,
-        Tooltip = "被墙 / 掩体挡住的敌人不吸附",
-        Callback = function(v)
-            AA.WallCheck = v
-            Library:Notify({
-                Title = "掩体检测",
-                Text = v and "已开启" or "已关闭",
-                Duration = 2,
-            })
-        end,
-    })
+    aaRight:AddSlider("AA_PredictionY", {
+        Text = "垂直预判",
+        Min = 0, Max = 7, Default = 2.6, Rounding = 2,
+    }):OnChanged(function(v) AA.PredictionY = v end)
 
     -- FOV 圈
     aaFov:AddToggle("AA_ShowFOV", {
         Text = "显示 FOV 圈",
         Default = false,
-        Tooltip = "显示辅助瞄准吸附范围圈；只有圈内目标会被吸附",
-        Callback = function(v)
-            AA.ShowFOV = v
-            updateFOVCircle()
-        end,
-    })
+        Tooltip = "只有圈内目标会被吸附",
+    }):OnChanged(function(v)
+        AA.ShowFOV = v
+        updateFOVCircle()
+    end)
 
     aaFov:AddToggle("AA_FOVFixed", {
         Text = "固定在屏幕中心",
         Default = true,
-        Tooltip = "关 = 跟随鼠标",
-        Callback = function(v)
-            AA.FOVFixed = v
-            updateFOVCircle()
-        end,
-    })
+    }):OnChanged(function(v)
+        AA.FOVFixed = v
+        updateFOVCircle()
+    end)
 
     aaFov:AddSlider("AA_FOVRadius", {
         Text = "FOV 圈半径",
-        Min = 20, Max = 1000, Default = 250,
-        Rounding = 0,
-        Suffix = " px",
-        Callback = function(v)
-            AA.FOVRadius = v
-            updateFOVCircle()
-        end,
-    })
+        Min = 20, Max = 1000, Default = 250, Rounding = 0, Suffix = " px",
+    }):OnChanged(function(v)
+        AA.FOVRadius = v
+        updateFOVCircle()
+    end)
 
     aaFov:AddSlider("AA_FOVThickness", {
         Text = "线条粗细",
-        Min = 1, Max = 8, Default = 2,
-        Rounding = 0,
-        Callback = function(v)
-            AA.FOVThickness = v
-            updateFOVCircle()
-        end,
-    })
+        Min = 1, Max = 8, Default = 2, Rounding = 0,
+    }):OnChanged(function(v)
+        AA.FOVThickness = v
+        updateFOVCircle()
+    end)
 
     aaFov:AddSlider("AA_FOVTransparency", {
         Text = "透明度",
-        Min = 0, Max = 1, Default = 0.3,
-        Rounding = 2,
-        Callback = function(v)
-            AA.FOVTransparency = v
-            updateFOVCircle()
-        end,
-    })
+        Min = 0, Max = 1, Default = 0.3, Rounding = 2,
+    }):OnChanged(function(v)
+        AA.FOVTransparency = v
+        updateFOVCircle()
+    end)
 
     aaFov:AddDropdown("AA_FOVColor", {
         Text = "圈颜色",
         Values = { "紫色", "红色", "绿色", "蓝色", "白色", "黄色" },
         Default = "紫色",
         Multi = false,
-        Callback = function(v)
-            local map = {
-                ["紫色"] = Color3.fromRGB(190, 120, 255),
-                ["红色"] = Color3.fromRGB(255, 80, 80),
-                ["绿色"] = Color3.fromRGB(80, 255, 120),
-                ["蓝色"] = Color3.fromRGB(80, 160, 255),
-                ["白色"] = Color3.fromRGB(255, 255, 255),
-                ["黄色"] = Color3.fromRGB(255, 220, 80),
-            }
-            AA.FOVColor = map[v] or map["紫色"]
-            updateFOVCircle()
-        end,
-    })
+    }):OnChanged(function(v)
+        local map = {
+            ["紫色"] = Color3.fromRGB(190, 120, 255),
+            ["红色"] = Color3.fromRGB(255, 80, 80),
+            ["绿色"] = Color3.fromRGB(80, 255, 120),
+            ["蓝色"] = Color3.fromRGB(80, 160, 255),
+            ["白色"] = Color3.fromRGB(255, 255, 255),
+            ["黄色"] = Color3.fromRGB(255, 220, 80),
+        }
+        AA.FOVColor = map[v] or map["紫色"]
+        updateFOVCircle()
+    end)
 
     aaFov:AddDropdown("AA_FOVSides", {
         Text = "圆的边数（越大越圆）",
         Values = { "32", "48", "64", "96", "128" },
         Default = "64",
         Multi = false,
-        Callback = function(v)
-            AA.FOVSides = tonumber(v) or 64
-            updateFOVCircle()
+    }):OnChanged(function(v)
+        AA.FOVSides = tonumber(v) or 64
+        updateFOVCircle()
+    end)
+
+    -- 队伍阵营过滤
+    aaTeam:AddToggle("AA_IgnoreTeam", {
+        Text = "忽略队友 仅全部阵营时生效",
+        Default = true,
+        Tooltip = "选了具体阵营后此开关自动失效",
+    }):OnChanged(function(v) AA.IgnoreTeammate = v end)
+
+    aaTeam:AddDropdown("AA_CampFilter", {
+        Text = "只吸附指定阵营",
+        Values = { "全部", "仅警察", "仅帮派", "仅平民" },
+        Default = "全部",
+        Multi = false,
+    }):OnChanged(function(v) AA.CampFilter = v end)
+
+    -- 掩体检测
+    aaWall:AddToggle("AA_WallCheck", {
+        Text = "启用掩体检测",
+        Default = true,
+        Tooltip = "被墙 / 掩体挡住的敌人不吸附",
+    }):OnChanged(function(v) AA.WallCheck = v end)
+
+    _G.WL = _G.WL or {}
+
+    local aaWL = Tabs.fz:AddRightGroupbox("白名单")
+    local AA_WL_Toggles = {}
+
+    local function AA_WL_AddFor(playerName)
+        if AA_WL_Toggles[playerName] then return end
+
+        local isAlreadyWL = (_G.WL and _G.WL[playerName] == true)
+
+        local t = aaWL:AddToggle("AAWL_" .. playerName, {
+            Text = playerName,
+            Default = isAlreadyWL,
+            Tooltip = "勾选后辅助瞄准不会吸附该玩家",
+        })
+        t:OnChanged(function(v)
+            _G.WL = _G.WL or {}
+            if v then
+                _G.WL[playerName] = true
+            else
+                _G.WL[playerName] = nil
+            end
+        end)
+        AA_WL_Toggles[playerName] = t
+    end
+
+    local function AA_WL_RemoveFor(playerName)
+        local t = AA_WL_Toggles[playerName]
+        if t then
+            pcall(function() t:Destroy() end)
+            AA_WL_Toggles[playerName] = nil
+        end
+        if _G.WL then _G.WL[playerName] = nil end
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then AA_WL_AddFor(p.Name) end
+    end
+
+    Players.PlayerAdded:Connect(function(p)
+        if p ~= LocalPlayer then
+            task.wait(0.3)
+            AA_WL_AddFor(p.Name)
+        end
+    end)
+
+    Players.PlayerRemoving:Connect(function(p)
+        if p ~= LocalPlayer then AA_WL_RemoveFor(p.Name) end
+    end)
+
+    aaWL:AddButton({
+        Text = "刷新白名单列表",
+        Func = function()
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer then AA_WL_AddFor(p.Name) end
+            end
         end,
     })
-
-    -- 参数
-    aaRight:AddSlider("AA_SpeedX", {
-        Text = "水平速度",
-        Min = 0.1, Max = 5, Default = 2.7,
-        Rounding = 1,
-        Callback = function(v)
-            AA.SpeedX = v
-            setAssistSensitivity(v)
-        end,
-    })
-
-    aaRight:AddSlider("AA_SpeedY", {
-        Text = "垂直速度",
-        Min = 0.1, Max = 5, Default = 1,
-        Rounding = 1,
-        Callback = function(v) AA.SpeedY = v end,
-    })
-
-    aaRight:AddSlider("AA_PredictionX", {
-        Text = "水平预判",
-        Min = 0, Max = 7, Default = 2.8,
-        Rounding = 2,
-        Callback = function(v) AA.PredictionX = v end,
-    })
-
-    aaRight:AddSlider("AA_PredictionY", {
-        Text = "垂直预判",
-        Min = 0, Max = 7, Default = 2.6,
-        Rounding = 2,
-        Callback = function(v) AA.PredictionY = v end,
-    })
-
-    print("[辅助瞄准]")
 end
 
 -- ============================================
@@ -3829,86 +4298,6 @@ ghRight:AddSlider("Aura_Revive_Interval", {
 })
 
 ghRight:AddDivider()
--- ==================== 瞄准页（仅子弹追踪） ====================
-local Players     = game:GetService("Players")
-local RunService  = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-
-local btHbSize = 8
-local btHbConn = nil
-
-local function btExpandPlayer(player)
-    if player == LocalPlayer then return end
-    local char = player.Character
-    if not char then return end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-    local hrpX = char:FindFirstChild("HumanoidRootPart")
-    if not hrpX then return end
-    local size = math.clamp(btHbSize, 0, 100)
-    pcall(function()
-        hrpX.Size = Vector3.new(size, size, size)
-        hrpX.Transparency = 0.85
-        hrpX.Color = Color3.fromRGB(190, 190, 190)
-        hrpX.Material = Enum.Material.Neon
-        hrpX.CanCollide = false
-    end)
-end
-
-local function btResetPlayer(player)
-    local char = player.Character
-    if not char then return end
-    local hrpX = char:FindFirstChild("HumanoidRootPart")
-    if not hrpX then return end
-    pcall(function()
-        hrpX.Size = Vector3.new(2, 2, 1)
-        hrpX.Transparency = 0
-        hrpX.Color = Color3.fromRGB(163, 162, 165)
-        hrpX.Material = Enum.Material.Plastic
-        hrpX.CanCollide = true
-    end)
-end
-
-local btGroup = Tabs.bot:AddLeftGroupbox("范围")
-
-btGroup:AddToggle("BT_Enable", {
-    Text = "范围",
-    Default = false,
-    Tooltip = "扩大敌人碰撞箱",
-    Callback = function(state)
-        if state then
-            if not btHbConn then
-                btHbConn = RunService.Heartbeat:Connect(function()
-                    for _, p in ipairs(Players:GetPlayers()) do
-                        btExpandPlayer(p)
-                    end
-                end)
-            end
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    player.CharacterAdded:Connect(function()
-                        task.wait(1)
-                        btExpandPlayer(player)
-                    end)
-                end
-            end
-        else
-            if btHbConn then
-                btHbConn:Disconnect()
-                btHbConn = nil
-            end
-            for _, p in ipairs(Players:GetPlayers()) do
-                btResetPlayer(p)
-            end
-        end
-    end,
-})
-
-btGroup:AddSlider("BT_Size", {
-    Text = "范围",
-    Default = 8, Min = 0, Max = 100, Rounding = 0,
-    Callback = function(value) btHbSize = value end,
-})
 -- ==================== 瞄准页（仅子弹追踪） ====================
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -6165,28 +6554,163 @@ SaveManager:BuildConfigSection(Tabs.UI)
 ThemeManager:ApplyToTab(Tabs.UI)
 SaveManager:LoadAutoloadConfig()
 
-local Players = game:GetService("Players")
-local VirtualUser = game:GetService("VirtualUser")
-local LocalPlayer = Players.LocalPlayer
+local AFKPlayers = game:GetService("Players")
+local AFKVirtualUser = game:GetService("VirtualUser")
+local AFKLocalPlayer = AFKPlayers.LocalPlayer
 
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
+AFKLocalPlayer.Idled:Connect(function()
+    
+    pcall(function()
+        AFKVirtualUser:CaptureController()
+        AFKVirtualUser:ClickButton2(Vector2.new(0, 0))
+    end)
+    print("AFKOK")
 end)
 
-local VirtualUser = game:GetService("VirtualUser")
-
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
-end)
+print("okAFK")
 
 task.spawn(function()
-    while true do
-        task.wait(60)
-        pcall(function()
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end)
+    local TranslationMap = {
+        -- ================= 顶部与全局 =================
+        ["Search"] = "搜索",
+        ["Search..."] = "搜索...",
+        ["Toggle"] = "开关",
+        ["Lock"] = "锁定",
+        
+        -- ================= 配置页 (Configuration) =================
+        ["Configuration"] = "配置管理",
+        ["Config name"] = "配置名称",
+        ["Enter config name..."] = "在此输入配置名称...",
+        ["Create config"] = "创建配置",
+        ["Config list"] = "配置列表",
+        ["Load config"] = "加载配置",
+        ["Overwrite config"] = "覆盖配置",
+        ["Delete config"] = "删除配置",
+        ["Refresh list"] = "刷新列表",
+        ["Set as autoload"] = "设为自动加载",
+        ["Reset autoload"] = "重置自动加载",
+        ["Config JSON"] = "配置 JSON 代码",
+        ["Import config"] = "导入配置",
+        ["Export current config"] = "导出当前配置",
+        
+        -- ================= 主题页 (Themes) =================
+        ["Themes"] = "主题设置",
+        ["Background color"] = "背景颜色",
+        ["Main color"] = "主要颜色",
+        ["Outline color"] = "轮廓颜色",
+        ["Accent color"] = "强调色",
+        ["Font color"] = "字体颜色",
+        ["Secondary font color"] = "次级字体颜色",
+        
+        -- 主题操作按钮 & 列表
+        ["Theme list"] = "主题列表",
+        ["Load theme"] = "加载主题",
+        ["Overwrite theme"] = "覆盖主题",
+        ["Delete theme"] = "删除主题",
+        ["Set as default"] = "设为默认",
+        ["Reset default"] = "重置默认",
+        ["Import theme"] = "导入主题",
+        ["Export current theme"] = "导出当前主题",
+        ["Background Image"] = "背景图片",
+        ["Theme JSON"] = "主题 JSON",
+        ["Custom theme name"] = "自定义主题名称",
+        ["Create theme"] = "创建主题",
+        ["Custom themes"] = "自定义主题列表",
+        
+        -- ================= 内置主题预设 =================
+        ["Default"] = "默认",
+        ["BBot"] = "BBot",
+        ["Fatality"] = "Fatality",
+        ["Jester"] = "小丑",
+        ["Mint"] = "薄荷",
+        ["Tokyo Night"] = "东京之夜",
+        ["Ubuntu"] = "乌班图",
+        ["Quartz"] = "石英",
+        ["Nord"] = "北欧",
+        ["Dracula"] = "德古拉",
+        ["Monokai"] = "莫诺卡",
+        ["Gruvbox"] = "格鲁夫",
+        ["Solarized"] = "日光",
+        ["Catppuccin"] = "卡布奇诺",
+        ["One Dark"] = "暗黑一号",
+        ["Cyberpunk"] = "赛博朋克",
+        ["Oceanic Next"] = "海洋之心",
+        ["Material"] = "质感",
+        
+        -- ================= 字体类型翻译 (Font Face) =================
+        ["Font Face"] = "字体类型",
+        ["Code"] = "代码",
+        ["BuilderSans"] = "建筑无衬线",
+        ["Fantasy"] = "幻想",
+        ["Gotham"] = "哥谭",
+        ["Jura"] = "朱拉",
+        ["Roboto"] = "罗博图",
+        ["RobotoMono"] = "罗博图等宽",
+        ["SourceSans"] = "思源无衬线",
+        ["Inter"] = "因特",
+        ["Arial"] = "黑体",
+        
+        -- ================= 其他 =================
+        ["None"] = "无",
+        ["none"] = "无"
+    }
+
+    local function TranslateObj(obj)
+        if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+        
+        local function apply()
+            -- 1. 处理普通文本
+            local txt = obj.Text
+            if txt and txt ~= "" then
+                if TranslationMap[txt] then
+                    obj.Text = TranslationMap[txt]
+                else
+                    -- 正则模糊匹配
+                    if txt:find("Current autoload config:") then
+                        obj.Text = txt:gsub("Current autoload config:", "当前自动加载配置："):gsub("none", "无")
+                    elseif txt:find("Current default theme:") then
+                        obj.Text = txt:gsub("Current default theme:", "当前默认主题："):gsub("none", "无")
+                    elseif txt:find("Contrast check:") then
+                        local newTxt = txt:gsub("Contrast check:", "对比度检查：")
+                        newTxt = newTxt:gsub("good", "良好"):gsub("bad", "差"):gsub("excellent", "极佳")
+                        obj.Text = newTxt
+                    end
+                end
+            end
+            
+            if obj:IsA("TextBox") then
+                local ph = obj.PlaceholderText
+                if ph and ph ~= "" and TranslationMap[ph] then
+                    obj.PlaceholderText = TranslationMap[ph]
+                end
+            end
+        end
+        
+        apply()
+        
+        -- 监听变化，防止刷新
+        obj:GetPropertyChangedSignal("Text"):Connect(apply)
+        if obj:IsA("TextBox") then
+            obj:GetPropertyChangedSignal("PlaceholderText"):Connect(apply)
+        end
     end
+
+    local function HookGui(gui)
+        if not gui then return end
+        for _, obj in ipairs(gui:GetDescendants()) do
+            TranslateObj(obj)
+        end
+        gui.DescendantAdded:Connect(TranslateObj)
+    end
+
+    task.wait(2)
+    
+    local CoreGui = game:GetService("CoreGui")
+    local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    
+    HookGui(CoreGui)
+    HookGui(PlayerGui)
+    
+    local ok, gethui = pcall(function() return gethui() end)
+    if ok and gethui then HookGui(gethui()) end
 end)
