@@ -181,7 +181,7 @@ Library.ShowToggleFrameInKeybinds = true
 local Window = Library:CreateWindow({
     Title = "港猫的通缉中国希望",
     Footer = "欢迎使用",
-    Icon = "rbxassetid://135749451972137",
+    Icon = "rbxassetid://139998751488080",
     NotifySide = "Right",
     ShowCustomCursor = false,
     Center = true,
@@ -190,7 +190,7 @@ local Window = Library:CreateWindow({
     MobileButtonsSide = "f",
 })
 
-Window:SetBackgroundImage("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/33490c2c-02d8-4dc8-b24a-0e0478a45b8f.png")
+Window:SetBackgroundImage("https://raw.githubusercontent.com/ggsq1741-debug/cQ/refs/heads/main/6979f443-2573-4441-a216-64c1eb2ee5df.png")
 Window.BackgroundTransparency = 0.9
 Window:SetCornerRadius(100) 
 -- ==================== 创建所有标签页 ====================
