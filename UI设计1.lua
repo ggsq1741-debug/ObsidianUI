@@ -197,11 +197,8 @@ Window:SetCornerRadius(100)
 local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
-    jw   = Window:AddTab("键位修改", "keyboard"),
     flup   = Window:AddTab("防录屏设置选项", "rbxassetid://7733655834"),
     zx   = Window:AddTab("准心设置", "rbxassetid://7733666258"),
-    wsj   = Window:AddTab("万圣节功能", "rbxassetid://7734058599"),
-    key   = Window:AddTab("万圣节刷钥匙", "rbxassetid://7733965118"),
     yy   = Window:AddTab("音乐 Music", "rbxassetid://7734020554"),
     sf   = Window:AddTab("甩飞", "rbxassetid://7733799371"),
     fc   = Window:AddTab("亚洲车王", "rbxassetid://7733708835"),
@@ -226,7 +223,7 @@ local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 
 ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
 ggLeft:AddDivider()
-ggLeft:AddLabel("2026.10.18更新万圣节")
+ggLeft:AddLabel("2026.11.7更新高跳")
 ggLeft:AddLabel("售后1109337389🟢")
 
 -- ⭐ 复制售后群（放在售后信息下方，醒目位置）
@@ -502,9 +499,66 @@ flyGroup:AddSlider("Fly_Speed", {
     Text = "飞行速度",
     Default = 120,
     Min = 50,
-    Max = 400, -- 上限降到 300，不然必封
+    Max = 400, 
     Rounding = 0,
     Callback = function(val) FlightSpeed = val end,
+})
+-- ==================== 玩家页：高跳（防检测·无下压） ====================
+local JumpState = {
+    JumpOn = false,
+    JumpVel = 300,
+}
+local jumpConn
+
+local function highJump()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp or hum.Health <= 0 then return end
+
+    -- 核心：修改垂直速度，不碰 JumpPower 和 WalkSpeed
+    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    hrp.AssemblyLinearVelocity = Vector3.new(
+        hrp.AssemblyLinearVelocity.X,
+        JumpState.JumpVel,
+        hrp.AssemblyLinearVelocity.Z
+    )
+end
+
+local function startJump()
+    if jumpConn then jumpConn:Disconnect() end
+    jumpConn = UserInputService.JumpRequest:Connect(function()
+        if JumpState.JumpOn then highJump() end
+    end)
+end
+
+-- 创建黑曜石 UI 控件
+local jumpGroup = Tabs.wj:AddRightGroupbox("高跳功能")
+
+jumpGroup:AddToggle("HighJump_On", {
+    Text = "启用高跳",
+    Default = false,
+    Tooltip = "点跳跃按钮触发，不修改 WalkSpeed / JumpPower",
+    Callback = function(v)
+        JumpState.JumpOn = v
+        if v then 
+            startJump() 
+        else
+            if jumpConn then jumpConn:Disconnect(); jumpConn = nil end
+        end
+    end,
+})
+
+jumpGroup:AddSlider("HighJump_Vel", {
+    Text = "跳跃力度",
+    Default = 300,
+    Min = 40,
+    Max = 400,
+    Rounding = 0,
+    Suffix = " 速度",
+    Callback = function(v) 
+        JumpState.JumpVel = v 
+    end,
 })
 -- ==================== 玩家页：人物自转 ====================
 local SpinEnabled, SpinSpeed = false, 5
@@ -656,18 +710,19 @@ headGroup:AddInput("Head_Size_Input", {
 
 local laokGroup = Tabs.wj:AddRightGroupbox("坠落功能")
 
-laokGroup:AddButton("Toggle_AntiDetect", {
-    Text = "开启/关闭 防摔落",
-    Tooltip = "开启后游戏读取你的速度恒为 0（防摔死/防瞬移检测）",
-    Callback = function()
-        hookVelocity = not hookVelocity -- 切换顶部定义的变量
+laokGroup:AddToggle("AntiDetect_Enable", {
+    Text = "防摔落",
+    Default = false,
+    Tooltip = "防摔死",
+    Callback = function(v)
+        hookVelocity = v -- 直接把开关状态赋给顶部的变量
         
-        if hookVelocity then
+        if v then
             print("防检测：已开启")
         else
             print("防检测：已关闭")
         end
-    end
+    end,
 })
 -- ==================== 玩家页：通用功能 ====================
 local clipConn = nil
@@ -758,283 +813,7 @@ miscGroup:AddButton({
         end)
     end,
 })
--- ==================== 键位修改（拖拽 + 缩放 + 一键重置） ====================
-do
-    local uis = game:GetService("UserInputService")
-    local run = game:GetService("RunService")
-    local lp = game:GetService("Players").LocalPlayer
 
-    local active = false
-    local dragging = false
-    local draggingObj = nil
-    local startPos = nil
-    local touchStart = nil
-    local latestPos = nil
-    local highlight = nil
-
-    -- ⭐ 选中 + 缩放状态
-    local selectedObj = nil
-    local selectedHL = nil
-    local originalSizes = {}
-    local objScales = {}
-    local scaleVal = 1.0
-
-    -- ⭐ 记录原始位置，用于一键重置
-    local originalPositions = {}
-
-    local function getTouchProfiles()
-        local pg = lp:FindFirstChild("PlayerGui")
-        if not pg then return nil end
-        local screen = pg:FindFirstChild("InputButtonsScreen")
-        if not screen then return nil end
-        return screen:FindFirstChild("TouchProfiles")
-    end
-
-    -- ⭐ 清理所有高亮框（内存引用 + 残留 UIStroke 兜底）
-    local function clearAllHighlights()
-        if highlight then pcall(function() highlight:Destroy() end); highlight = nil end
-        if selectedHL then pcall(function() selectedHL:Destroy() end); selectedHL = nil end
-
-        local profiles = getTouchProfiles()
-        if profiles then
-            for _, v in ipairs(profiles:GetDescendants()) do
-                if v:IsA("GuiObject") then
-                    for _, c in ipairs(v:GetChildren()) do
-                        if c:IsA("UIStroke") and (c.Name == "__DragHL" or c.Name == "__SelHL") then
-                            pcall(function() c:Destroy() end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- 暴力拆除父级限制，防止拖出去被弹回
-    local function breakLayout(obj)
-        pcall(function()
-            local parent = obj.Parent
-            if parent then
-                for _, child in ipairs(parent:GetChildren()) do
-                    if child:IsA("UIListLayout") or child:IsA("UIGridLayout") or child:IsA("UIPositionConstraint") then
-                        child:Destroy()
-                    end
-                end
-            end
-            for _, child in ipairs(obj:GetChildren()) do
-                if child:IsA("UIAspectRatioConstraint") or child:IsA("UIPositionConstraint") then
-                    child:Destroy()
-                end
-            end
-        end)
-    end
-
-    local function findButton(pos)
-        local profiles = getTouchProfiles()
-        if not profiles then return nil end
-        for _, v in ipairs(profiles:GetDescendants()) do
-            if v:IsA("GuiObject") and v.Visible then
-                local ap, sz = v.AbsolutePosition, v.AbsoluteSize
-                if sz.X >= 20 and sz.Y >= 20 and sz.X <= 250 and sz.Y <= 250 then
-                    if pos.X >= ap.X and pos.X <= ap.X + sz.X and pos.Y >= ap.Y and pos.Y <= ap.Y + sz.Y then
-                        return v
-                    end
-                end
-            end
-        end
-        return nil
-    end
-
-    local function applyPos()
-        if not dragging or not draggingObj or not draggingObj.Parent then return end
-        if not latestPos or not touchStart or not startPos then return end
-        local delta = latestPos - touchStart
-        pcall(function()
-            draggingObj.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end)
-    end
-
-    local function applyScale(obj, scale)
-        if not obj or not obj.Parent then return end
-        if not originalSizes[obj] then
-            originalSizes[obj] = obj.Size
-        end
-        local o = originalSizes[obj]
-        pcall(function()
-            obj.Size = UDim2.new(
-                o.X.Scale * scale, math.floor(o.X.Offset * scale + 0.5),
-                o.Y.Scale * scale, math.floor(o.Y.Offset * scale + 0.5)
-            )
-        end)
-    end
-
-    local function selectObj(obj)
-        if selectedHL then pcall(function() selectedHL:Destroy() end); selectedHL = nil end
-        selectedObj = obj
-        if not obj then return end
-        if not originalSizes[obj] then originalSizes[obj] = obj.Size end
-        if not objScales[obj] then objScales[obj] = 1.0 end
-        selectedHL = Instance.new("UIStroke", obj)
-        selectedHL.Name = "__SelHL"
-        selectedHL.Color = Color3.fromRGB(255, 200, 0)
-        selectedHL.Thickness = 3
-        selectedHL.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    end
-
-    local function beginDrag(pos)
-        if not active or dragging then return end
-        local obj = findButton(pos)
-        if not obj then return end
-        if not originalPositions[obj] then
-            originalPositions[obj] = obj.Position
-        end
-        breakLayout(obj)
-        dragging = true
-        draggingObj = obj
-        startPos = obj.Position
-        touchStart = pos
-        latestPos = pos
-        if highlight then highlight:Destroy() end
-        highlight = Instance.new("UIStroke", obj)
-        highlight.Name = "__DragHL"
-        highlight.Color = Color3.fromRGB(0, 255, 130)
-        highlight.Thickness = 3
-        highlight.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-        selectObj(obj)
-    end
-
-    local function endDrag()
-        if highlight then pcall(function() highlight:Destroy() end); highlight = nil end
-        dragging = false
-        draggingObj = nil
-        startPos = nil
-        touchStart = nil
-        latestPos = nil
-    end
-
-    -- ==================== 输入事件 ====================
-    uis.InputBegan:Connect(function(input, gameProcessed)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            beginDrag(input.Position)
-        end
-    end)
-
-    uis.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
-            latestPos = input.Position
-            applyPos()
-        end
-    end)
-
-    uis.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if dragging then endDrag() end
-        end
-    end)
-
-    run.RenderStepped:Connect(function()
-        applyPos()
-    end)
-
-    -- ==================== Obsidian UI 控件 ====================
-    local jwLeft  = Tabs.jw:AddLeftGroupbox("拖拽开关")
-    local jwRight = Tabs.jw:AddRightGroupbox("恢复设置")
-
-    jwLeft:AddToggle("EnableDrag", {
-        Text = "开启无延迟拖拽",
-        Default = false,
-        Callback = function(v)
-            active = v
-            if v then
-                clearAllHighlights()
-                Library:Notify({ Title = "已开启", Text = "点击按钮选中后可拖动滑块缩放", Duration = 3 })
-            else
-                endDrag()
-                selectObj(nil)
-                clearAllHighlights()
-                Library:Notify({ Title = "已关闭", Text = "拖拽已停止，高亮已清除", Duration = 3 })
-            end
-        end,
-    })
-
-    -- ⭐ 缩放设置
-    jwLeft:AddDivider()
-    jwLeft:AddLabel("缩放选中按钮")
-
-    jwLeft:AddSlider("BtnScale", {
-        Text = "缩放倍率",
-        Default = 1.0,
-        Min = 0.3,
-        Max = 3.0,
-        Rounding = 2,
-        Callback = function(v)
-            scaleVal = v
-            if selectedObj and selectedObj.Parent then
-                objScales[selectedObj] = v
-                applyScale(selectedObj, v)
-            end
-        end,
-    })
-
-    jwLeft:AddButton({
-        Text = "恢复选中按钮原始大小",
-        Func = function()
-            if not selectedObj or not selectedObj.Parent then
-                Library:Notify({ Title = "提示", Text = "请先点击一个按钮选中它", Duration = 2 })
-                return
-            end
-            if originalSizes[selectedObj] then
-                pcall(function() selectedObj.Size = originalSizes[selectedObj] end)
-            end
-            objScales[selectedObj] = 1.0
-            Library:Notify({ Title = "已恢复", Text = "选中按钮已恢复原始大小", Duration = 2 })
-        end,
-    })
-
-    jwLeft:AddButton({
-        Text = "取消选中",
-        Func = function()
-            selectObj(nil)
-        end,
-    })
-
-    -- ⭐ 恢复设置
-    jwRight:AddLabel("恢复设置")
-
-    jwRight:AddButton({
-        Text = "一键重置所有按钮",
-        Func = function()
-            local count = 0
-            for obj, pos in pairs(originalPositions) do
-                if obj and obj.Parent then
-                    pcall(function() obj.Position = pos end)
-                    count = count + 1
-                end
-            end
-            for obj, sz in pairs(originalSizes) do
-                if obj and obj.Parent then
-                    pcall(function() obj.Size = sz end)
-                end
-            end
-            table.clear(originalSizes)
-            table.clear(objScales)
-            scaleVal = 1.0
-            endDrag()
-            selectObj(nil)
-            clearAllHighlights()
-
-            Library:Notify({
-                Title = "重置成功",
-                Text = "已恢复 " .. tostring(count) .. " 个按钮到初始状态",
-                Duration = 3
-            })
-        end
-    })
-end
 local flupLeft = Tabs.flup:AddLeftGroupbox("核心功能")
 
 flupLeft:AddButton({
@@ -1499,714 +1278,7 @@ do
 
     Draw()
 end
--- ==================== 万圣节：终极怪物光环 (移植版 · 已移除 FOV 圈) ====================
-do
-    local WSJ_Players = game:GetService("Players")
-    local WSJ_RunService = game:GetService("RunService")
-    local WSJ_Workspace = game:GetService("Workspace")
-    local WSJ_LocalPlayer = WSJ_Players.LocalPlayer
-    local WSJ_Debris = game:GetService("Debris")
-    local WSJ_SoundService = game:GetService("SoundService")
-    local WSJ_ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-    local DevvFolder = WSJ_ReplicatedStorage:FindFirstChild("Devv") or WSJ_ReplicatedStorage:FindFirstChild("devv")
-    if not DevvFolder then
-        Library:Notify("未找到 Devv 模块，请进入游戏后使用", 5)
-        return
-    end
-
-    local DevvModule  = require(DevvFolder)
-    local Network     = DevvModule.load("Network")
-    local ClientTools = require(WSJ_ReplicatedStorage.Client.Wanted.Modules.ClientTools)
-    local MathUtil    = DevvModule.load("MathUtil")
-    local nuid        = DevvModule.load("NUID")
-    local fireServer  = Network.FireServer
-
-    local MobAuraConfig = {
-        Enabled  = false,
-        Range    = 300,
-        Interval = 0.01,
-        ShowTracer    = true,
-        TracerColor   = Color3.fromRGB(255, 80, 80),
-        TracerWidth   = 0.15,
-        TracerLife    = 0.2,
-        PlaySound     = true,
-        SoundId       = "rbxassetid://6607204501",
-        SoundVolume   = 0.4,
-    }
-
-    local MobChamsConfig = { 
-        Enabled = false,
-        TextSize = 10,
-        EspColor = Color3.fromRGB(0, 255, 0),
-    }
-
-    local TracerFolder = WSJ_Workspace:FindFirstChild("__MobTracers") or Instance.new("Folder", WSJ_Workspace)
-    TracerFolder.Name = "__MobTracers"
-
-    local function createTracer(fromPos, toPos)
-        if not MobAuraConfig.ShowTracer then return end
-        pcall(function()
-            local a0 = Instance.new("Attachment", TracerFolder); a0.WorldPosition = fromPos
-            local a1 = Instance.new("Attachment", TracerFolder); a1.WorldPosition = toPos
-            local beam = Instance.new("Beam", TracerFolder)
-            beam.Attachment0, beam.Attachment1 = a0, a1
-            beam.Color = ColorSequence.new(MobAuraConfig.TracerColor)
-            beam.Width0, beam.Width1 = MobAuraConfig.TracerWidth, MobAuraConfig.TracerWidth
-            beam.LightEmission, beam.LightInfluence, beam.FaceCamera = 1, 0, true
-            beam.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.9)})
-            WSJ_Debris:AddItem(beam, MobAuraConfig.TracerLife)
-            WSJ_Debris:AddItem(a0, MobAuraConfig.TracerLife)
-            WSJ_Debris:AddItem(a1, MobAuraConfig.TracerLife)
-        end)
-    end
-
-    local function playHitSound()
-        if not MobAuraConfig.PlaySound then return end
-        pcall(function()
-            local snd = Instance.new("Sound", WSJ_SoundService)
-            snd.SoundId, snd.Volume = MobAuraConfig.SoundId, MobAuraConfig.SoundVolume
-            snd:Play(); WSJ_Debris:AddItem(snd, 1)
-        end)
-    end
-
-    WSJ_RunService.RenderStepped:Connect(function()
-        local mobsFolder = WSJ_Workspace:FindFirstChild("Mobs")
-        if not mobsFolder then return end
-        
-        if not MobChamsConfig.Enabled then
-            for _, mob in ipairs(mobsFolder:GetChildren()) do
-                if mob:IsA("Model") then
-                    local hl = mob:FindFirstChild("__MobHighlight")
-                    if hl then hl:Destroy() end
-                    local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
-                    if head then
-                        local bb = head:FindFirstChild("__MobNameTag")
-                        if bb then bb:Destroy() end
-                    end
-                end
-            end
-            return 
-        end
-
-        for _, mob in ipairs(mobsFolder:GetChildren()) do
-            if mob:IsA("Model") then
-                pcall(function()
-                    local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
-                    local hum = mob:FindFirstChildOfClass("Humanoid")
-                    
-                    if head and hum then
-                        local hl = mob:FindFirstChild("__MobHighlight")
-                        if not hl then
-                            hl = Instance.new("Highlight")
-                            hl.Name = "__MobHighlight"
-                            hl.FillTransparency = 0.3 
-                            hl.OutlineTransparency = 0 
-                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                            hl.Parent = mob
-                        end
-                        hl.FillColor = MobChamsConfig.EspColor
-                        hl.OutlineColor = MobChamsConfig.EspColor
-
-                        local bb = head:FindFirstChild("__MobNameTag")
-                        if not bb then
-                            bb = Instance.new("BillboardGui")
-                            bb.Name = "__MobNameTag"
-                            bb.Size = UDim2.new(0, 100, 0, 25)
-                            bb.StudsOffset = Vector3.new(0, 1.5, 0) 
-                            bb.AlwaysOnTop = true
-                            bb.Parent = head
-
-                            local textName = Instance.new("TextLabel")
-                            textName.Name = "TagText"
-                            textName.Size = UDim2.new(1, 0, 0.5, 0)
-                            textName.BackgroundTransparency = 1
-                            textName.Font = Enum.Font.GothamBold
-                            textName.TextSize = MobChamsConfig.TextSize
-                            textName.TextStrokeTransparency = 0.2
-                            textName.TextColor3 = MobChamsConfig.EspColor
-                            textName.Text = "港猫的小弟"
-                            textName.Parent = bb
-
-                            local textHealth = Instance.new("TextLabel")
-                            textHealth.Name = "HealthText"
-                            textHealth.Size = UDim2.new(1, 0, 0.5, 0)
-                            textHealth.Position = UDim2.new(0, 0, 0.5, 0)
-                            textHealth.BackgroundTransparency = 1
-                            textHealth.Font = Enum.Font.GothamBold
-                            textHealth.TextSize = MobChamsConfig.TextSize
-                            textHealth.TextStrokeTransparency = 0.2
-                            textHealth.TextColor3 = Color3.new(1, 1, 1)
-                            textHealth.Parent = bb
-                        end
-                        
-                        local realHealth = mob:GetAttribute("health")
-                        local maxHealth = mob:GetAttribute("maxHealth")
-                        if not realHealth then realHealth = hum.Health end
-                        if not maxHealth then maxHealth = hum.MaxHealth end
-
-                        local tagText = bb:FindFirstChild("TagText")
-                        if tagText then 
-                            tagText.TextColor3 = MobChamsConfig.EspColor 
-                            tagText.Text = "港猫的小弟"
-                            tagText.TextSize = MobChamsConfig.TextSize
-                        end
-                        
-                        local healthText = bb:FindFirstChild("HealthText")
-                        if healthText then 
-                            healthText.Text = string.format("HP: %d/%d", math.floor(realHealth), math.floor(maxHealth))
-                            healthText.TextSize = MobChamsConfig.TextSize
-                            if realHealth < maxHealth * 0.3 then
-                                healthText.TextColor3 = Color3.fromRGB(255, 50, 50)
-                            else
-                                healthText.TextColor3 = Color3.new(1, 1, 1)
-                            end
-                        end
-                    end
-                end)
-            end
-        end
-    end)
-
-    local function getClosestMob()
-        local myChar = WSJ_LocalPlayer.Character
-        if not myChar then return nil end
-        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return nil end
-
-        local closestMob = nil
-        local minDist = math.huge
-        local mobsFolder = WSJ_Workspace:FindFirstChild("Mobs")
-        if not mobsFolder then return nil end
-
-        for _, mob in ipairs(mobsFolder:GetChildren()) do
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            local hrp = mob:FindFirstChild("HumanoidRootPart")
-            if hum and hrp and hum.Health > 0 then
-                local dist = (myHRP.Position - hrp.Position).Magnitude
-                if dist <= MobAuraConfig.Range and dist < minDist then
-                    minDist = dist
-                    closestMob = hrp
-                end
-            end
-        end
-        return closestMob
-    end
-
-    local function fireAtMob(targetPart)
-        local char = WSJ_LocalPlayer.Character
-        local myHead = char and char:FindFirstChild("Head")
-        if not myHead then return end
-
-        local ok, tool = pcall(ClientTools.GetLocalEquippedTool)
-        if not ok or not tool or not tool.toolId then return end
-        local ts = tool.toolState
-
-        if ts and ts.ammo and ts.ammo <= 0 then
-            pcall(fireServer, "reload", tool.toolId)
-            pcall(fireServer, "chamber", tool.toolId)
-            return
-        end
-
-        local targetPos = targetPart.Position
-        local originPos = myHead.Position
-        local dir = targetPos - originPos
-        local bulletId = nuid()
-        local shootCF = MathUtil.CompressCFrame(CFrame.new(originPos, targetPos))
-        
-        pcall(function() fireServer("shoot", tool.toolId, shootCF, { { bulletId, shootCF } }) end)
-        if ts and ts.ammo then ts.ammo = ts.ammo - 1 end
-
-        createTracer(originPos, targetPos)
-        playHitSound()
-
-        local unit = dir.Magnitude > 0.001 and dir.Unit or myHead.CFrame.LookVector
-        local args = {
-            {
-                massLimit = 5, hit = targetPart, position = targetPos, normal = -unit,
-                material = targetPart.Material or Enum.Material.Plastic,
-                distance = dir.Magnitude, collisionPoint = targetPos, direction = unit, speed = 1196.285, 
-                source = { sourceType = "Bullet", sourceId = bulletId, sourceToolId = tool.toolId, sourcePlayerId = WSJ_LocalPlayer.UserId },
-                hitName = "HumanoidRootPart", hitType = "mob", mobType = targetPart.Parent.Name
-            }
-        }
-        pcall(function() fireServer("registerProjectileHits", bulletId, tool.toolId, args) end)
-    end
-
-    task.spawn(function()
-        while true do
-            if MobAuraConfig.Enabled then
-                pcall(function()
-                    local mobPart = getClosestMob()
-                    if mobPart then fireAtMob(mobPart) end
-                end)
-                task.wait(MobAuraConfig.Interval)
-            else
-                task.wait(0.5)
-            end
-        end
-    end)
-
-    local wsjLeft = Tabs.wsj:AddLeftGroupbox("自动打怪")
-    local wsjRight = Tabs.wsj:AddRightGroupbox("透视与视觉")
-
-    wsjLeft:AddToggle("WSJ_MobAura", {
-        Text = "启用怪物光环",
-        Default = false,
-        Tooltip = "自动锁头开枪，打得准（无 FOV 限制，按距离最近选目标）",
-        Callback = function(v)
-            MobAuraConfig.Enabled = v
-            Library:Notify(v and "怪物光环已开启" or "怪物光环已关闭", 2)
-        end,
-    })
-
-    wsjLeft:AddSlider("WSJ_Range", {
-        Text = "最大攻击距离",
-        Min = 50, Max = 2000, Default = 300,
-        Rounding = 0,
-        Suffix = " studs",
-        Callback = function(v) MobAuraConfig.Range = v end,
-    })
-
-    wsjLeft:AddSlider("WSJ_Interval", {
-        Text = "极限射速 (秒)",
-        Min = 0.01, Max = 1, Default = 0.01,
-        Rounding = 2,
-        Callback = function(v) MobAuraConfig.Interval = v end,
-    })
-
-    wsjLeft:AddDivider()
-
-    wsjLeft:AddToggle("WSJ_Tracer", {
-        Text = "显示弹道射线",
-        Default = true,
-        Callback = function(v) MobAuraConfig.ShowTracer = v end,
-    })
-
-    wsjLeft:AddToggle("WSJ_Sound", {
-        Text = "播放命中音效",
-        Default = true,
-        Callback = function(v) MobAuraConfig.PlaySound = v end,
-    })
-
-    wsjLeft:AddDropdown("WSJ_SoundSelect", {
-        Text = "选择音效",
-        Values = { "Neverlose", "Gamesense", "Fatality", "Minecraft", "经典叮叮叮" },
-        Default = "Neverlose",
-        Multi = false,
-        Callback = function(v)
-            local map = {
-                ["Neverlose"] = "rbxassetid://6607204501",
-                ["Gamesense"] = "rbxassetid://5633695679",
-                ["Fatality"] = "rbxassetid://6607142036",
-                ["Minecraft"] = "rbxassetid://7151570575",
-                ["经典叮叮叮"] = "rbxassetid://4590662766",
-            }
-            MobAuraConfig.SoundId = map[v] or "rbxassetid://6607204501"
-        end,
-    })
-
-    wsjRight:AddToggle("WSJ_Chams", {
-        Text = "启用怪物内透",
-        Desc = "",
-        Default = false,
-        Callback = function(v)
-            MobChamsConfig.Enabled = v
-            Library:Notify(v and "怪物内透已开启" or "怪物内透已关闭", 2)
-        end,
-    })
-
-    wsjRight:AddSlider("WSJ_ChamsSize", {
-        Text = "字体大小",
-        Min = 8, Max = 18, Default = 10,
-        Rounding = 0,
-        Callback = function(v) MobChamsConfig.TextSize = v end,
-    })
-
-    wsjRight:AddDropdown("WSJ_ChamsColor", {
-        Text = "透视颜色",
-        Values = { "绿色", "红色", "蓝色", "紫色", "黄色", "白色" },
-        Default = "绿色",
-        Multi = false,
-        Callback = function(v)
-            local map = {
-                ["绿色"] = Color3.fromRGB(0, 255, 0),
-                ["红色"] = Color3.fromRGB(255, 50, 50),
-                ["蓝色"] = Color3.fromRGB(50, 150, 255),
-                ["紫色"] = Color3.fromRGB(180, 50, 255),
-                ["黄色"] = Color3.fromRGB(255, 255, 50),
-                ["白色"] = Color3.fromRGB(255, 255, 255),
-            }
-            MobChamsConfig.EspColor = map[v] or Color3.fromRGB(0, 255, 0)
-        end,
-    })
-end
--- ==================== 万圣节：僵尸范围放大与标记 (合并版) ====================
-do
-    local WSJ_MobRangeEnabled = false
-    local WSJ_ScaleMultiplier = 2.0
-    local WSJ_HighlightColor = Color3.fromRGB(255, 50, 50)
-    local WSJ_OrigData = {}
-
-    RunService.RenderStepped:Connect(function()
-        if not WSJ_MobRangeEnabled then return end
-        
-        local mobsFolder = workspace:FindFirstChild("Mobs")
-        if not mobsFolder then return end
-
-        for _, mob in ipairs(mobsFolder:GetChildren()) do
-            if mob:IsA("Model") then
-                local hum = mob:FindFirstChildOfClass("Humanoid")
-                
-                if hum and hum.Health > 0 then
-                    local hl = mob:FindFirstChild("WSJ_NPC_Marker")
-                    if not hl then
-                        hl = Instance.new("Highlight")
-                        hl.Name = "WSJ_NPC_Marker"
-                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        hl.FillTransparency = 0.5
-                        hl.OutlineTransparency = 0
-                        hl.Parent = mob
-                    end
-                    hl.FillColor = WSJ_HighlightColor
-                    hl.OutlineColor = WSJ_HighlightColor
-
-                    if not WSJ_OrigData[mob] then
-                        local origScale = 1
-                        pcall(function() origScale = mob:GetScale() end)
-                        WSJ_OrigData[mob] = { Scale = origScale }
-                    end
-
-                    local targetScale = WSJ_OrigData[mob].Scale * WSJ_ScaleMultiplier
-                    local currentScale = 1
-                    pcall(function() currentScale = mob:GetScale() end)
-
-                    if math.abs(currentScale - targetScale) > 0.01 then
-                        pcall(function()
-                            mob:ScaleTo(targetScale)
-                            for _, part in ipairs(mob:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    part.Transparency = 0
-                                    part.CanCollide = true
-                                    part.Massless = true
-                                end
-                            end
-                        end)
-                    end
-                end
-            end
-        end
-    end)
-
-    -- 只留左边这一个框，全塞进去
-    local wsjRangeGroup = Tabs.wsj:AddLeftGroupbox("僵尸范围放大")
-
-    wsjRangeGroup:AddToggle("WSJ_MobRange_Toggle", {
-        Text = "开启 NPC 标记与放大",
-        Desc = "自动给全图怪物加高亮并变大",
-        Default = false,
-        Callback = function(v)
-            WSJ_MobRangeEnabled = v
-            if not v then
-                local mobsFolder = workspace:FindFirstChild("Mobs")
-                if mobsFolder then
-                    for _, mob in ipairs(mobsFolder:GetChildren()) do
-                        if mob:IsA("Model") then
-                            local hl = mob:FindFirstChild("WSJ_NPC_Marker")
-                            if hl then hl:Destroy() end
-                            if WSJ_OrigData[mob] then
-                                pcall(function() mob:ScaleTo(WSJ_OrigData[mob].Scale) end)
-                            end
-                        end
-                    end
-                end
-                table.clear(WSJ_OrigData)
-                Library:Notify({ Title = "僵尸范围", Text = "已关闭并恢复原样", Duration = 2 })
-            else
-                Library:Notify({ Title = "僵尸范围", Text = "已开启", Duration = 2 })
-            end
-        end,
-    })
-
-    wsjRangeGroup:AddDivider()
-
-    wsjRangeGroup:AddSlider("WSJ_MobRange_Scale", {
-        Text = "实体放大倍数",
-        Min = 1.0, Max = 5.0, Default = 2.0,
-        Rounding = 1,
-        Callback = function(v)
-            WSJ_ScaleMultiplier = v
-        end,
-    })
-
-    wsjRangeGroup:AddDropdown("WSJ_MobRange_Color", {
-        Text = "高亮颜色",
-        Values = { "红色", "绿色", "蓝色", "黄色", "紫色", "白色", "青色" },
-        Default = "红色",
-        Multi = false,
-        Callback = function(v)
-            local map = {
-                ["红色"] = Color3.fromRGB(255, 50, 50),
-                ["绿色"] = Color3.fromRGB(50, 255, 50),
-                ["蓝色"] = Color3.fromRGB(50, 150, 255),
-                ["黄色"] = Color3.fromRGB(255, 255, 50),
-                ["紫色"] = Color3.fromRGB(180, 50, 255),
-                ["白色"] = Color3.fromRGB(255, 255, 255),
-                ["青色"] = Color3.fromRGB(50, 255, 255),
-            }
-            WSJ_HighlightColor = map[v] or Color3.fromRGB(255, 50, 50)
-        end,
-    })
-end
--- ==================== 万圣节刷钥匙（自动路径点 + 节点ESP） ====================
-do
-    local TweenService = game:GetService("TweenService")
-    local LocalPlayer  = game:GetService("Players").LocalPlayer
-
-    -- 预设路径点（按顺序，共 10 个）
-    local SPOTS = {
-        CFrame.new(1141.173095703125, 104.87025451660156, 1807.316162109375), 
-        CFrame.new(-6994.158203125,  53.224830627441406, 3111.651611328125),   
-        CFrame.new(-4890.5517578125, 20.991640090942383, 3725.601806640625),   
-        CFrame.new(-4436.419921875,  559.4906005859375,  2352.015380859375),   
-        CFrame.new(-6338.59765625,   397.233154296875,   -846.17724609375),    
-        CFrame.new(-3472.481201171875, 345.2247619628906, 114.20946502685547), 
-        CFrame.new(-135.06695556640625, 40.05835723876953, -1750.7685546875), 
-        CFrame.new(-1114.73388671875, 181.20816040039062, 3286.400146484375),  
-        CFrame.new(702.323486328125,  69.32481384277344,  2820.0419921875),    
-        CFrame.new(-6718.154296875, 43.31953048706055, 728.074462890625) 
-    }
-
-    local Config = {
-        Enabled     = false,
-        Loop        = true,
-        Speed       = 80,
-        WaitAtPoint = 0,
-    }
-
-    local running = false
-    local index   = 1
-
-    -- ==================== 节点 ESP 标记系统 ====================
-    local nodeESPEnabled = false
-    local nodeMarkers = {}
-
-    local function updateNodeESP()
-        if nodeESPEnabled then
-            if #nodeMarkers > 0 then return end -- 已经创建过了
-            for i, cf in ipairs(SPOTS) do
-                -- 1. 透明锚点 (用来挂载文字)
-                local anchor = Instance.new("Part")
-                anchor.Name = "NodeAnchor_" .. i
-                anchor.Size = Vector3.new(1, 1, 1)
-                anchor.Position = cf.Position
-                anchor.Anchored = true
-                anchor.CanCollide = false
-                anchor.Transparency = 1
-                anchor.Parent = workspace
-
-                -- 2. 垂直光柱 (醒目)
-                local beamPart = Instance.new("Part")
-                beamPart.Name = "NodeBeam_" .. i
-                beamPart.Size = Vector3.new(1, 200, 1) -- 高200的光柱
-                beamPart.CFrame = cf * CFrame.new(0, 100, 0)
-                beamPart.Anchored = true
-                beamPart.CanCollide = false
-                beamPart.Material = Enum.Material.Neon
-                beamPart.Color = Color3.fromRGB(0, 255, 160)
-                beamPart.Transparency = 0.6
-                beamPart.Parent = workspace
-
-                -- 3. 悬浮文字
-                local billboard = Instance.new("BillboardGui")
-                billboard.Name = "NodeTag_" .. i
-                billboard.Size = UDim2.new(0, 100, 0, 50)
-                billboard.StudsOffset = Vector3.new(0, 3, 0)
-                billboard.AlwaysOnTop = true
-                billboard.Adornee = anchor
-                billboard.Parent = anchor
-
-                local text = Instance.new("TextLabel")
-                text.Size = UDim2.new(1, 0, 1, 0)
-                text.BackgroundTransparency = 1
-                text.Text = "节点 " .. i
-                text.TextColor3 = Color3.fromRGB(0, 255, 160)
-                text.TextStrokeTransparency = 0
-                text.TextStrokeColor3 = Color3.new(0, 0, 0)
-                text.Font = Enum.Font.GothamBold
-                text.TextSize = 20
-                text.Parent = billboard
-
-                table.insert(nodeMarkers, anchor)
-                table.insert(nodeMarkers, beamPart)
-            end
-        else
-            -- 关闭时清理所有标记
-            for _, obj in ipairs(nodeMarkers) do
-                if obj and obj.Parent then
-                    obj:Destroy()
-                end
-            end
-            table.clear(nodeMarkers)
-        end
-    end
-    -- ==========================================================
-
-    local function getHRP()
-        local c = LocalPlayer.Character
-        return c and c:FindFirstChild("HumanoidRootPart")
-    end
-
-    local function tweenTo(hrp, targetCF)
-        if not hrp or not hrp.Parent then return false end
-        if not Config.Enabled then return false end
-
-        local dist = (hrp.Position - targetCF.Position).Magnitude
-        local dur  = math.max(dist / math.max(Config.Speed, 1), 0.1)
-
-        local oldCanCollide = hrp.CanCollide
-        hrp.CanCollide = false 
-
-        local tw = TweenService:Create(
-            hrp,
-            TweenInfo.new(dur, Enum.EasingStyle.Linear),
-            { CFrame = targetCF }
-        )
-        tw:Play()
-
-        while tw.PlaybackState == Enum.PlaybackState.Playing do
-            if not Config.Enabled then
-                tw:Cancel()
-                hrp.CanCollide = oldCanCollide
-                return false
-            end
-            task.wait(0.05)
-        end
-        
-        hrp.CanCollide = oldCanCollide
-        return true
-    end
-
-    local function waitAtPoint(sec)
-        if sec <= 0 then return true end
-        local t0 = tick()
-        while tick() - t0 < sec do
-            if not Config.Enabled then return false end
-            task.wait(0.05)
-        end
-        return true
-    end
-
-    local function startRun()
-        if running then return end
-        if #SPOTS == 0 then
-            Library:Notify("路径点为空", 3)
-            Config.Enabled = false
-            return
-        end
-        running = true
-        index = 1
-
-        task.spawn(function()
-            while Config.Enabled do
-                local hrp = getHRP()
-                if not hrp then
-                    task.wait(0.5)
-                    continue
-                end
-
-                local spot = SPOTS[index]
-                if not spot then break end
-
-                local ok = tweenTo(hrp, spot)
-                if not ok then break end
-
-                if not waitAtPoint(Config.WaitAtPoint) then break end
-                if not Config.Enabled then break end
-
-                index = index + 1
-                if index > #SPOTS then
-                    if Config.Loop then
-                        index = 1
-                    else
-                        Config.Enabled = false
-                        Library:Notify("路径点已全部跑完", 3)
-                        break
-                    end
-                end
-
-                task.wait(0.05)
-            end
-            running = false
-        end)
-    end
-
-    local function stopRun()
-        Config.Enabled = false
-    end
-
-    -- ==================== Obsidian UI 控件（Tabs.key） ====================
-    local keyLeft  = Tabs.key:AddLeftGroupbox("自动刷钥匙")
-    local keyRight = Tabs.key:AddRightGroupbox("参数设置")
-
-    -- ⭐ 添加公告提示
-    keyLeft:AddLabel("公告：开启取消坠落状态和穿墙")
-    keyLeft:AddDivider()
-
-    keyLeft:AddToggle("KeyFarm_Enable", {
-        Text = "开启半自动刷钥匙",
-        Default = false,
-        Tooltip = "",
-        Callback = function(v)
-            Config.Enabled = v
-            if v then
-                startRun()
-                Library:Notify("半自动刷钥匙已开启", 2)
-            else
-                stopRun()
-                Library:Notify("半自动刷钥匙已关闭", 2)
-            end
-        end,
-    })
-
-    keyLeft:AddToggle("KeyFarm_Loop", {
-        Text = "循环跑图",
-        Default = true,
-        Tooltip = "",
-        Callback = function(v) Config.Loop = v end,
-    })
-    
-    keyLeft:AddDivider()
-    keyLeft:AddToggle("KeyFarm_ESP", {
-        Text = "显示节点位置标记",
-        Default = false,
-        Tooltip = "",
-        Callback = function(v)
-            nodeESPEnabled = v
-            updateNodeESP()
-        end,
-    })
-
-    keyRight:AddSlider("KeyFarm_Speed", {
-        Text = "移动速度",
-        Default = 80,
-        Min = 10,
-        Max = 80,
-        Rounding = 0,
-        Suffix = " studs/s",
-        Callback = function(v) Config.Speed = v end,
-    })
-
-    keyRight:AddSlider("KeyFarm_Wait", {
-        Text = "每个节点等待时间",
-        Default = 0,
-        Min = 0,
-        Max = 10,
-        Rounding = 1,
-        Suffix = " 秒",
-        Callback = function(v) Config.WaitAtPoint = v end,
-    })
-end
 -- ============================================================
 -- 音乐播放器（Obsidian UI · 多曲目版 · 带日志）
 -- ============================================================
