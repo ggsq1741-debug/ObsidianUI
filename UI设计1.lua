@@ -198,6 +198,7 @@ local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
     flup   = Window:AddTab("防录屏设置选项", "rbxassetid://7733655834"),
+    qiang   = Window:AddTab("枪无后座", "rbxassetid://140713420056179"),
     zx   = Window:AddTab("准心设置", "rbxassetid://7733666258"),
     yy   = Window:AddTab("音乐 Music", "rbxassetid://7734020554"),
     sf   = Window:AddTab("甩飞", "rbxassetid://7733799371"),
@@ -222,7 +223,7 @@ local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 
 ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
 ggLeft:AddDivider()
-ggLeft:AddLabel("2026.11.7更新高跳")
+ggLeft:AddLabel("2026.11.15更新枪械无后座")
 ggLeft:AddLabel("售后1109337389🟢")
 
 -- ⭐ 复制售后群（放在售后信息下方，醒目位置）
@@ -537,7 +538,6 @@ local jumpGroup = Tabs.wj:AddRightGroupbox("高跳功能")
 jumpGroup:AddToggle("HighJump_On", {
     Text = "启用高跳",
     Default = false,
-    Tooltip = "点跳跃按钮触发，不修改 WalkSpeed / JumpPower",
     Callback = function(v)
         JumpState.JumpOn = v
         if v then 
@@ -951,6 +951,85 @@ flupRight:AddSlider("BT_Size", {
     Default = 8, Min = 1, Max = 100, Rounding = 0,
     Callback = function(value) btHbSize = value end,
 })
+-- ==================== 枪无后座 (纯净版·无全局变量) ====================
+do
+    local qiangGroup = Tabs.qiang:AddLeftGroupbox("无后座")
+    local gunMods = {}
+    local gunOriginals = {}
+
+    -- 深度解冻函数
+    local function deepUnfreeze(tbl)
+        if type(tbl) ~= "table" then return end
+        if setreadonly then pcall(setreadonly, tbl, false) end
+        local mt = getrawmetatable(tbl)
+        if mt and mt.__newindex then pcall(setreadonly, mt, false) end
+        for _, v in pairs(tbl) do
+            if type(v) == "table" then deepUnfreeze(v) end
+        end
+    end
+
+    -- 异步读取枪械数据，防止卡加载
+    task.spawn(function()
+        local base = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+        if base then base = base:FindFirstChild("Wanted") end
+        if base then base = base:FindFirstChild("Indicies") end
+        if base then base = base:FindFirstChild("Objects") end
+        if base then base = base:FindFirstChild("Guns") end
+        
+        if base then
+            for _, mod in pairs(base:GetDescendants()) do
+                if mod:IsA("ModuleScript") then
+                    local ok, data = pcall(require, mod)
+                    if ok and type(data) == "table" and data.name and data.recoil then
+                        table.insert(gunMods, data)
+                        gunOriginals[data.name] = {
+                            recoil = table.clone(data.recoil),
+                            aim = table.clone(data.aim or {})
+                        }
+                    end
+                end
+            end
+        end
+    end)
+
+    -- 唯一的 UI 开关
+    qiangGroup:AddToggle("Qiang_NoRecoil", {
+        Text = "开启无后座",
+        Default = false,
+        Tooltip = "开启后后座力极低，关闭自动还原",
+        Callback = function(state)
+            task.spawn(function()
+                for _, data in ipairs(gunMods) do
+                    deepUnfreeze(data)
+                    if state then
+                        pcall(function()
+                            if data.recoil then
+                                for k, v in pairs(data.recoil) do
+                                    if type(v) == "number" then data.recoil[k] = 0.0001 end
+                                end
+                            end
+                            if data.aim and data.aim.spreadAngle then
+                                data.aim.spreadAngle = 0.0001
+                            end
+                        end)
+                    else
+                        local orig = gunOriginals[data.name]
+                        if orig then
+                            pcall(function()
+                                if data.recoil and orig.recoil then
+                                    for k, v in pairs(orig.recoil) do data.recoil[k] = v end
+                                end
+                                if data.aim and orig.aim then
+                                    for k, v in pairs(orig.aim) do data.aim[k] = v end
+                                end
+                            end)
+                        end
+                    end
+                end
+            end)
+        end,
+    })
+end
 -- ======================================================
 -- ==================== 屏幕准星（黑曜石UI · Tabs.zx） ====================
 do
