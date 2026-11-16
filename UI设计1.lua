@@ -2753,17 +2753,31 @@ local function SetupAimAssist()
     local aaTeam  = Tabs.fz:AddRightGroupbox("队伍阵营过滤")
     local aaWall  = Tabs.fz:AddLeftGroupbox("掩体检测")
 
-    aaMain:AddToggle("AA_Enable", {
+    -- ⭐ 统一开关函数（UI + 快捷键共用）
+    local aaToggleObj = nil
+    local applying = false
+    local function setAim(on)
+        if AA.Enabled == on then return end
+        AA.Enabled = on
+        AimAssistModule.Step = on and aimStep or originalAimStep
+        updateFOVCircle()
+        if aaToggleObj and not applying then
+            applying = true
+            pcall(function() aaToggleObj:SetValue(on) end)
+            applying = false
+        end
+    end
+
+    aaToggleObj = aaMain:AddToggle("AA_Enable", {
         Text = "启用辅助瞄准",
         Default = false,
         Tooltip = "开启后准星自动吸附敌人",
-    }):OnChanged(function(v)
+    })
+    aaToggleObj:OnChanged(function(v)
+        if applying then return end
+        if AA.Enabled == v then return end
         AA.Enabled = v
-        if v then
-            AimAssistModule.Step = aimStep
-        else
-            AimAssistModule.Step = originalAimStep
-        end
+        AimAssistModule.Step = v and aimStep or originalAimStep
         updateFOVCircle()
     end)
 
@@ -2774,6 +2788,33 @@ local function SetupAimAssist()
         Multi = false,
     }):OnChanged(function(v)
         AA.Part = v
+    end)
+
+    -- ⭐ 快捷键开关
+    local hotkeyMap = {
+        ["无"]=nil,
+        ["R"]=Enum.KeyCode.R, ["T"]=Enum.KeyCode.T, ["Y"]=Enum.KeyCode.Y,
+        ["G"]=Enum.KeyCode.G, ["H"]=Enum.KeyCode.H, ["B"]=Enum.KeyCode.B,
+        ["N"]=Enum.KeyCode.N, ["M"]=Enum.KeyCode.M, ["J"]=Enum.KeyCode.J,
+        ["K"]=Enum.KeyCode.K, ["L"]=Enum.KeyCode.L, ["P"]=Enum.KeyCode.P,
+        ["U"]=Enum.KeyCode.U, ["O"]=Enum.KeyCode.O,
+        ["F1"]=Enum.KeyCode.F1, ["F2"]=Enum.KeyCode.F2, ["F3"]=Enum.KeyCode.F3,
+        ["F4"]=Enum.KeyCode.F4,
+    }
+    local currentHotkey = nil
+    aaMain:AddDropdown("AA_Hotkey", {
+        Text = "快捷键开关",
+        Values = { "无","R","T","Y","G","H","B","N","M","J","K","L","P","U","O","F1","F2","F3","F4" },
+        Default = "无",
+        Multi = false,
+    }):OnChanged(function(v)
+        currentHotkey = hotkeyMap[v]
+    end)
+    UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if currentHotkey and input.KeyCode == currentHotkey then
+            setAim(not AA.Enabled)
+        end
     end)
 
     -- 参数
@@ -2891,18 +2932,26 @@ local function SetupAimAssist()
         Tooltip = "被墙 / 掩体挡住的敌人不吸附",
     }):OnChanged(function(v) AA.WallCheck = v end)
 
+    -- ========================================
+    -- 白名单（显示 昵称 (@用户名)）
+    -- ========================================
     _G.WL = _G.WL or {}
 
     local aaWL = Tabs.fz:AddRightGroupbox("白名单")
     local AA_WL_Toggles = {}
 
-    local function AA_WL_AddFor(playerName)
+    local function AA_WL_AddFor(plr)
+        local playerName = plr.Name
         if AA_WL_Toggles[playerName] then return end
 
         local isAlreadyWL = (_G.WL and _G.WL[playerName] == true)
+        local displayName = plr.DisplayName
+        local display = (displayName ~= "" and displayName ~= playerName)
+            and (displayName .. " (@" .. playerName .. ")")
+            or playerName
 
         local t = aaWL:AddToggle("AAWL_" .. playerName, {
-            Text = playerName,
+            Text = display,
             Default = isAlreadyWL,
             Tooltip = "勾选后辅助瞄准不会吸附该玩家",
         })
@@ -2927,13 +2976,13 @@ local function SetupAimAssist()
     end
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then AA_WL_AddFor(p.Name) end
+        if p ~= LocalPlayer then AA_WL_AddFor(p) end
     end
 
     Players.PlayerAdded:Connect(function(p)
         if p ~= LocalPlayer then
             task.wait(0.3)
-            AA_WL_AddFor(p.Name)
+            AA_WL_AddFor(p)
         end
     end)
 
@@ -2945,7 +2994,7 @@ local function SetupAimAssist()
         Text = "刷新白名单列表",
         Func = function()
             for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer then AA_WL_AddFor(p.Name) end
+                if p ~= LocalPlayer then AA_WL_AddFor(p) end
             end
         end,
     })
@@ -2958,190 +3007,206 @@ local aaOk, aaErr = pcall(SetupAimAssist)
 if not aaOk then
     warn("[辅助瞄准] 初始化失败: " .. tostring(aaErr))
 end
--- ==================== 光环设置页====================
-local Players           = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer       = Players.LocalPlayer
+-- ==================== 光环设置页 ====================
+do
+    local Players           = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local LocalPlayer       = Players.LocalPlayer
 
-local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
-if not DevvFolder then
-    return warn("❌ [光环] 请在《通缉》游戏内执行此脚本！")
-end
+    local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
 
-local DevvModule = require(DevvFolder)
-local Network    = DevvModule.load("Network")
-local FireServer = Network.FireServer
+    if not DevvFolder then
+        local ghLeft  = Tabs.gh:AddLeftGroupbox("踩踏 / 逮捕")
+        local ghRight = Tabs.gh:AddRightGroupbox("抓取 / 救援")
+        ghLeft:AddLabel("需在《通缉》游戏内使用")
+        ghRight:AddLabel("当前不在游戏内，光环功能不可用")
+    else
+        local DevvModule = require(DevvFolder)
+        local Network    = DevvModule.load("Network")
+        local FireServer = Network.FireServer
 
--- ⭐ 抓包验证过的真实动作名
-local STOMP_ACTION  = "finish"   
-local ARREST_ACTION = "arrest"   
-local GRAB_ACTION   = "grab"     
-local REVIVE_ACTION = "revive"   
+        local AuraConfig = {
+            Stomp  = { Enabled=false, Interval=0.5, Range=50, Event="finish", SkipTeam=true  },
+            Arrest = { Enabled=false, Interval=0.5, Range=50, Event="arrest", SkipTeam=false },
+            Grab   = { Enabled=false, Interval=0.5, Range=50, Event="grab",   SkipTeam=true  },
+            Revive = { Enabled=false, Interval=0.5, Range=50, Event="revive", SkipTeam=false },
+        }
 
--- ==================== 配置 ====================
-local AuraConfig = {
-    Stomp  = { Enabled = false, Interval = 0.5, Range = 50 },  
-    Arrest = { Enabled = false, Interval = 0.5, Range = 50 },  
-    Grab   = { Enabled = false, Interval = 0.5, Range = 50 },  
-    Revive = { Enabled = false, Interval = 0.5, Range = 50 },  
-}
+        -- ⭐ 白名单过滤 + 找最近目标
+        local function getClosestTarget(range, skipTeam)
+            local myChar = LocalPlayer.Character
+            if not myChar then return nil end
+            local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return nil end
 
--- ==================== 核心：找最近的可操作目标 ====================
--- skipTeam = true 时跳过队友；false 时对所有人生效
-local function getClosestTarget(range, skipTeam)
-    local myChar = LocalPlayer.Character
-    if not myChar then return nil end
-    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-    if not myHRP then return nil end
+            local closest, minDist = nil, math.huge
 
-    local closest, minDist = nil, math.huge
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character then
-            local isTeammate = plr.Team and LocalPlayer.Team and plr.Team == LocalPlayer.Team
-            if not (skipTeam and isTeammate) then
-                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-                if hrp and hum and hum.Health > 0 then
-                    local isDowned = plr:GetAttribute("isDowned")
-                        or plr:GetAttribute("knocked")
-                        or plr:GetAttribute("crawling")
-                    local dist = (hrp.Position - myHRP.Position).Magnitude
-                    if dist <= range and dist < minDist and isDowned ~= false then
-                        minDist = dist
-                        closest = plr
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer
+                    and plr.Character
+                    and not (_G.WL and _G.WL[plr.Name]) then
+                    local isTeammate = plr.Team and LocalPlayer.Team and plr.Team == LocalPlayer.Team
+                    if not (skipTeam and isTeammate) then
+                        local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                        local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                        if hrp and hum and hum.Health > 0 then
+                            local isDowned = plr:GetAttribute("isDowned")
+                                or plr:GetAttribute("knocked")
+                                or plr:GetAttribute("crawling")
+                            local dist = (hrp.Position - myHRP.Position).Magnitude
+                            if dist <= range and dist < minDist and isDowned ~= false then
+                                minDist = dist
+                                closest = plr
+                            end
+                        end
                     end
                 end
             end
+            return closest
         end
+
+        -- ⭐ 合并调度器：一个循环分发四个光环，关闭时不空转
+        task.spawn(function()
+            local acc = { Stomp=0, Arrest=0, Grab=0, Revive=0 }
+            while true do
+                local dt = task.wait(0.05)
+                for k, cfg in pairs(AuraConfig) do
+                    if cfg.Enabled then
+                        acc[k] = acc[k] + dt
+                        if acc[k] >= cfg.Interval then
+                            acc[k] = 0
+                            local target = getClosestTarget(cfg.Range, cfg.SkipTeam)
+                            if target then
+                                pcall(function() FireServer(cfg.Event, target.UserId) end)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        -- ==================== UI ====================
+        local ghLeft  = Tabs.gh:AddLeftGroupbox("踩踏 / 逮捕")
+        local ghRight = Tabs.gh:AddRightGroupbox("抓取 / 救援")
+
+        ghLeft:AddToggle("Aura_Stomp_Enable", {
+            Text = "启用踩踏光环",
+            Default = false,
+            Tooltip = "自动寻找 50 格内最近的敌人并踩踏",
+            Callback = function(v) AuraConfig.Stomp.Enabled = v end,
+        })
+        ghLeft:AddSlider("Aura_Stomp_Interval", {
+            Text = "踩踏间隔",
+            Default = 0.5, Min = 0.01, Max = 5, Rounding = 2, Suffix = "s",
+            Callback = function(v) AuraConfig.Stomp.Interval = v end,
+        })
+
+        ghLeft:AddDivider()
+
+        ghLeft:AddToggle("Aura_Arrest_Enable", {
+            Text = "启用逮捕光环",
+            Default = false,
+            Tooltip = "自动寻找 50 格内最近的倒地敌人并逮捕",
+            Callback = function(v) AuraConfig.Arrest.Enabled = v end,
+        })
+        ghLeft:AddSlider("Aura_Arrest_Interval", {
+            Text = "逮捕间隔",
+            Default = 0.5, Min = 0.01, Max = 5, Rounding = 2, Suffix = "s",
+            Callback = function(v) AuraConfig.Arrest.Interval = v end,
+        })
+
+        ghRight:AddToggle("Aura_Grab_Enable", {
+            Text = "启用抓取光环",
+            Default = false,
+            Tooltip = "自动寻找 50 格内最近的敌人并抓取",
+            Callback = function(v) AuraConfig.Grab.Enabled = v end,
+        })
+        ghRight:AddSlider("Aura_Grab_Interval", {
+            Text = "抓取间隔",
+            Default = 0.5, Min = 0.01, Max = 5, Rounding = 2, Suffix = "s",
+            Callback = function(v) AuraConfig.Grab.Interval = v end,
+        })
+
+        ghRight:AddDivider()
+
+        ghRight:AddToggle("Aura_Revive_Enable", {
+            Text = "启用救援光环",
+            Default = false,
+            Tooltip = "自动寻找 50 格内最近的倒地玩家并救援",
+            Callback = function(v) AuraConfig.Revive.Enabled = v end,
+        })
+        ghRight:AddSlider("Aura_Revive_Interval", {
+            Text = "救援间隔",
+            Default = 0.5, Min = 0.01, Max = 5, Rounding = 2, Suffix = "s",
+            Callback = function(v) AuraConfig.Revive.Interval = v end,
+        })
+
+        ghRight:AddDivider()
+
+        -- ⭐ 光环白名单（显示 昵称 (@用户名)）
+        _G.WL = _G.WL or {}
+        local ghWL = Tabs.gh:AddRightGroupbox("光环白名单")
+        local AuraWL_Created = {}
+
+        local function AuraWL_AddFor(plr)
+            local name = plr.Name
+            if AuraWL_Created[name] then return end
+
+            local displayName = plr.DisplayName
+            local display = (displayName ~= "" and displayName ~= name)
+                and (displayName .. " (@" .. name .. ")")
+                or name
+
+            local isAlreadyWL = (_G.WL and _G.WL[name] == true)
+            ghWL:AddToggle("AuraWL_" .. name, {
+                Text = display,
+                Default = isAlreadyWL,
+                Tooltip = "勾上后光环不会对该玩家生效",
+                Callback = function(v)
+                    _G.WL = _G.WL or {}
+                    if v then
+                        _G.WL[name] = true
+                    else
+                        _G.WL[name] = nil
+                    end
+                end,
+            })
+            AuraWL_Created[name] = true
+        end
+
+        local function AuraWL_RemoveFor(name)
+            AuraWL_Created[name] = nil
+            if _G.WL then _G.WL[name] = nil end
+        end
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                pcall(AuraWL_AddFor, p)
+            end
+        end
+
+        Players.PlayerAdded:Connect(function(p)
+            if p ~= LocalPlayer then
+                task.wait(0.3)
+                pcall(AuraWL_AddFor, p)
+            end
+        end)
+
+        Players.PlayerRemoving:Connect(function(p)
+            if p ~= LocalPlayer then AuraWL_RemoveFor(p.Name) end
+        end)
+
+        ghWL:AddButton({
+            Text = "刷新光环白名单",
+            Func = function()
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer then pcall(AuraWL_AddFor, p) end
+                end
+                Library:Notify({ Title = "光环白名单", Text = "已刷新", Duration = 2 })
+            end,
+        })
     end
-    return closest
 end
-
--- ==================== 四个光环的循环 ====================
--- 踩踏光环（跳过队友）
-task.spawn(function()
-    while true do
-        if AuraConfig.Stomp.Enabled then
-            local target = getClosestTarget(AuraConfig.Stomp.Range, true)
-            if target then
-                pcall(function()
-                    FireServer(STOMP_ACTION, target.UserId)
-                end)
-            end
-        end
-        task.wait(AuraConfig.Stomp.Interval)
-    end
-end)
-
--- 逮捕光环（不检查队友，与提取脚本一致）
-task.spawn(function()
-    while true do
-        if AuraConfig.Arrest.Enabled then
-            local target = getClosestTarget(AuraConfig.Arrest.Range, false)
-            if target then
-                pcall(function()
-                    FireServer(ARREST_ACTION, target.UserId)
-                end)
-            end
-        end
-        task.wait(AuraConfig.Arrest.Interval)
-    end
-end)
-
--- 抓取光环（跳过队友）
-task.spawn(function()
-    while true do
-        if AuraConfig.Grab.Enabled then
-            local target = getClosestTarget(AuraConfig.Grab.Range, true)
-            if target then
-                pcall(function()
-                    FireServer(GRAB_ACTION, target.UserId)
-                end)
-            end
-        end
-        task.wait(AuraConfig.Grab.Interval)
-    end
-end)
-
--- 救援光环（不检查队友，救援任何倒地玩家）
-task.spawn(function()
-    while true do
-        if AuraConfig.Revive.Enabled then
-            local target = getClosestTarget(AuraConfig.Revive.Range, false)
-            if target then
-                pcall(function()
-                    FireServer(REVIVE_ACTION, target.UserId)
-                end)
-            end
-        end
-        task.wait(AuraConfig.Revive.Interval)
-    end
-end)
-
--- ==================== Obsidian UI：gh 标签页 ====================
-local ghLeft  = Tabs.gh:AddLeftGroupbox("踩踏 / 逮捕")
-local ghRight = Tabs.gh:AddRightGroupbox("抓取 / 救援")
-
--- 踩踏
-ghLeft:AddToggle("Aura_Stomp_Enable", {
-    Text = "启用踩踏光环",
-    Default = false,
-    Tooltip = "自动寻找 50 格内最近的敌人并踩踏",
-    Callback = function(v) AuraConfig.Stomp.Enabled = v end,
-})
-ghLeft:AddSlider("Aura_Stomp_Interval", {
-    Text = "踩踏间隔",
-    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
-    Suffix = "s",
-    Callback = function(v) AuraConfig.Stomp.Interval = v end,
-})
-
-ghLeft:AddDivider()
-
--- 逮捕
-ghLeft:AddToggle("Aura_Arrest_Enable", {
-    Text = "启用逮捕光环",
-    Default = false,
-    Tooltip = "自动寻找 50 格内最近的倒地敌人并逮捕",
-    Callback = function(v) AuraConfig.Arrest.Enabled = v end,
-})
-ghLeft:AddSlider("Aura_Arrest_Interval", {
-    Text = "逮捕间隔",
-    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
-    Suffix = "s",
-    Callback = function(v) AuraConfig.Arrest.Interval = v end,
-})
-
--- 抓取
-ghRight:AddToggle("Aura_Grab_Enable", {
-    Text = "启用抓取光环",
-    Default = false,
-    Tooltip = "自动寻找 50 格内最近的敌人并抓取",
-    Callback = function(v) AuraConfig.Grab.Enabled = v end,
-})
-ghRight:AddSlider("Aura_Grab_Interval", {
-    Text = "抓取间隔",
-    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
-    Suffix = "s",
-    Callback = function(v) AuraConfig.Grab.Interval = v end,
-})
-
-ghRight:AddDivider()
-
--- 救援
-ghRight:AddToggle("Aura_Revive_Enable", {
-    Text = "启用救援光环",
-    Default = false,
-    Tooltip = "自动寻找 50 格内最近的倒地玩家并救援",
-    Callback = function(v) AuraConfig.Revive.Enabled = v end,
-})
-ghRight:AddSlider("Aura_Revive_Interval", {
-    Text = "救援间隔",
-    Default = 0.5, Min = 0.01, Max = 5, Rounding = 2,
-    Suffix = "s",
-    Callback = function(v) AuraConfig.Revive.Interval = v end,
-})
 
 ghRight:AddDivider()
 -- ==================== 瞄准页（仅子弹追踪） ====================
