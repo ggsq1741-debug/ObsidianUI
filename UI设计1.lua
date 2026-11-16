@@ -3141,7 +3141,7 @@ do
             Callback = function(v) AuraConfig.Revive.Interval = v end,
         })
 
-        ghRight:AddDivider()
+        ghRight:AddDivider()   -- ⭐ 分隔线移到块内
 
         -- ⭐ 光环白名单（显示 昵称 (@用户名)）
         _G.WL = _G.WL or {}
@@ -3207,8 +3207,7 @@ do
         })
     end
 end
-
-ghRight:AddDivider()
+-- ==================== 瞄准页（仅子弹追踪） ====================
 -- ==================== 瞄准页（仅子弹追踪） ====================
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -3428,34 +3427,41 @@ zjLeft:AddDivider()
 local WL_Group = Tabs.zj:AddRightGroupbox("白名单（勾上=不攻击）")
 local WL_Created = {}
 
-local function WL_AddFor(playerName)
-    if WL_Created[playerName] then return end
-    local t = WL_Group:AddToggle("WL_" .. playerName, {
-        Text = playerName,
+local function WL_AddFor(plr)
+    local name = plr.Name
+    if WL_Created[name] then return end
+
+    local displayName = plr.DisplayName
+    local display = (displayName ~= "" and displayName ~= name)
+        and (displayName .. " (@" .. name .. ")")
+        or name
+
+    local t = WL_Group:AddToggle("WL_" .. name, {
+        Text = display,
         Default = false,
         Callback = function(v)
             _G.WL = _G.WL or {}
             if v then
-                _G.WL[playerName] = true
+                _G.WL[name] = true
             else
-                _G.WL[playerName] = nil
+                _G.WL[name] = nil
             end
         end,
     })
-    WL_Created[playerName] = t
+    WL_Created[name] = t
 end
 
 -- 当前所有玩家
 for _, p in ipairs(Players:GetPlayers()) do
     if p ~= LocalPlayer then
-        WL_AddFor(p.Name)
+        WL_AddFor(p)
     end
 end
 
 -- 新玩家加入自动加开关
 Players.PlayerAdded:Connect(function(p)
     if p ~= LocalPlayer then
-        WL_AddFor(p.Name)
+        WL_AddFor(p)
     end
 end)
 
@@ -3465,7 +3471,7 @@ WL_Group:AddButton({
     Func = function()
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer then
-                WL_AddFor(p.Name)
+                WL_AddFor(p)
             end
         end
         Library:Notify({ Title = "白名单", Text = "已刷新", Duration = 2 })
