@@ -846,110 +846,241 @@ flupLeft:AddButton({
     end,
 })
 
-local flupRight = Tabs.flup:AddRightGroupbox("范围")
+-- ==========================================
+-- 范围模块（Obsidian 版 · 双样式 + 原始属性备份 + 白名单）
+-- ==========================================
+local RangeA = {Enabled=false, Size=8, Transparency=1,    Material=Enum.Material.ForceField} -- 透明,全体生效
+local RangeB = {Enabled=false, Size=8, Transparency=0.85, Material=Enum.Material.Neon}        -- 半透明,仅白名单
 
-local btHbSize = 8
-local btHbConn = nil
-local btCharConns = {} 
+local rangeConns = {}
+local RangeOrig  = {}
+_G.RangeWL = _G.RangeWL or {}
 
-local function btExpandPlayer(player)
-    if player == LocalPlayer then return end
-    local char = player.Character
-    if not char then return end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-    local hrpX = char:FindFirstChild("HumanoidRootPart")
-    if not hrpX then return end
-    
-    local size = math.clamp(btHbSize, 1, 100)
-    pcall(function()
-        hrpX.Size = Vector3.new(size, size, size)
-        hrpX.Transparency = 1             -- ⭐ 这里改成了 1，完全透明
-        hrpX.Color = Color3.fromRGB(190, 190, 190)
-        hrpX.Material = Enum.Material.Neon
-        hrpX.CanCollide = false
-    end)
+local function isWL(p)
+    return p ~= nil and _G.RangeWL[p.Name] == true
 end
 
-local function btResetPlayer(player)
-    if player == LocalPlayer then return end 
-    local char = player.Character
-    if not char then return end
-    local hrpX = char:FindFirstChild("HumanoidRootPart")
-    if not hrpX then return end
-    pcall(function()
-        hrpX.Size = Vector3.new(2, 2, 1) 
-        hrpX.Transparency = 0             -- ⭐ 这里改成了 0，防止关闭后敌人身体隐形
-        hrpX.Color = Color3.fromRGB(163, 162, 165)
-        hrpX.Material = Enum.Material.Plastic
-        hrpX.CanCollide = true
-    end)
+local function saveOrig(hrp)
+    if RangeOrig[hrp] then return end
+    RangeOrig[hrp] = {
+        Size         = hrp.Size,
+        Transparency = hrp.Transparency,
+        Color        = hrp.Color,
+        Material     = hrp.Material,
+        CanCollide   = hrp.CanCollide,
+    }
 end
 
-local function btBindPlayer(player)
-    if player == LocalPlayer then return end
-    if btCharConns[player] then
-        btCharConns[player]:Disconnect()
-        btCharConns[player] = nil
+local function applyRangePart(hrp, s, cfg)
+    saveOrig(hrp)
+    hrp.Size         = Vector3.new(s, s, s)
+    hrp.Transparency = cfg.Transparency
+    hrp.Color        = Color3.fromRGB(190, 190, 190)
+    hrp.Material     = cfg.Material
+    hrp.CanCollide   = false
+end
+
+-- 按原始属性还原（修复关闭后躯干白方块）
+local function resetRangePart(hrp)
+    local o = RangeOrig[hrp]
+    if not o then return end
+    hrp.Size         = o.Size
+    hrp.Transparency = o.Transparency
+    hrp.Color        = o.Color
+    hrp.Material     = o.Material
+    hrp.CanCollide   = o.CanCollide
+    RangeOrig[hrp]   = nil
+end
+
+local function applyRangeToPlayer(p, cfg)
+    if not p or p == LocalPlayer or not p.Character then return end
+    local h = p.Character:FindFirstChild("HumanoidRootPart")
+    if h then pcall(applyRangePart, h, math.clamp(cfg.Size, 1, 100), cfg) end
+end
+
+local function resetRangeToPlayer(p)
+    if not p or p == LocalPlayer or not p.Character then return end
+    local h = p.Character:FindFirstChild("HumanoidRootPart")
+    if h then pcall(resetRangePart, h) end
+end
+
+local function applyRangeAll(cfg)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            if cfg == RangeB then
+                if isWL(p) then applyRangeToPlayer(p, cfg) end
+            else
+                applyRangeToPlayer(p, cfg)
+            end
+        end
     end
-    btCharConns[player] = player.CharacterAdded:Connect(function()
+end
+
+local function resetRangeAll()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then resetRangeToPlayer(p) end
+    end
+end
+
+local function bindRangePlayer(p)
+    if p == LocalPlayer then return end
+    if rangeConns[p] then rangeConns[p]:Disconnect() end
+    rangeConns[p] = p.CharacterAdded:Connect(function()
         task.wait(1)
-        if btHbConn then
-            btExpandPlayer(player)
+        local h = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+        if not h then return end
+        if RangeA.Enabled then
+            pcall(applyRangePart, h, math.clamp(RangeA.Size, 1, 100), RangeA)
+        elseif RangeB.Enabled and isWL(p) then
+            pcall(applyRangePart, h, math.clamp(RangeB.Size, 1, 100), RangeB)
         end
     end)
 end
 
-flupRight:AddToggle("BT_Enable", {
-    Text = "范围",
+for _, p in ipairs(Players:GetPlayers()) do bindRangePlayer(p) end
+Players.PlayerAdded:Connect(bindRangePlayer)
+Players.PlayerRemoving:Connect(function(p)
+    if p.Character then
+        RangeOrig[p.Character:FindFirstChild("HumanoidRootPart")] = nil
+    end
+end)
+
+local function setRangeA(on)
+    if on == RangeA.Enabled then return end
+    RangeA.Enabled = on
+    if on then
+        RangeB.Enabled = false
+        applyRangeAll(RangeA)
+    else
+        resetRangeAll()
+    end
+end
+
+local function setRangeB(on)
+    if on == RangeB.Enabled then return end
+    RangeB.Enabled = on
+    if on then
+        RangeA.Enabled = false
+        local cnt = 0
+        for _ in pairs(_G.RangeWL) do cnt = cnt + 1 end
+        if cnt == 0 then
+            Library:Notify("白名单为空，请先勾选玩家", 4)
+        end
+        applyRangeAll(RangeB)
+    else
+        resetRangeAll()
+    end
+end
+
+-- ==========================================
+-- 防录屏 Tab：范围（透明，全体生效）
+-- ==========================================
+local flupRangeA = Tabs.flup:AddRightGroupbox("范围 (透明)")
+
+flupRangeA:AddToggle("RangeA_Enable", {
+    Text = "开启范围",
     Default = false,
+    Tooltip = "全体玩家碰撞箱隐形放大（完全透明）",
     Callback = function(state)
+        setRangeA(state)
         if state then
-            if btHbConn then btHbConn:Disconnect() end
-            for _, conn in pairs(btCharConns) do pcall(function() conn:Disconnect() end) end
-            table.clear(btCharConns)
-
-            btHbConn = RunService.Heartbeat:Connect(function()
-                for _, p in ipairs(Players:GetPlayers()) do
-                    btExpandPlayer(p)
-                end
-            end)
-
-            for _, player in ipairs(Players:GetPlayers()) do
-                btBindPlayer(player)
-            end
-            
-            if not _G._BTPlayerAddedConn then
-                _G._BTPlayerAddedConn = Players.PlayerAdded:Connect(function(p)
-                    if btHbConn then
-                        btBindPlayer(p)
-                    end
-                end)
-            end
+            Library:Notify("范围已开启（透明·全体）", 3)
         else
-            if btHbConn then
-                btHbConn:Disconnect()
-                btHbConn = nil
-            end
-            for _, conn in pairs(btCharConns) do pcall(function() conn:Disconnect() end) end
-            table.clear(btCharConns)
-            
-            if _G._BTPlayerAddedConn then
-                _G._BTPlayerAddedConn:Disconnect()
-                _G._BTPlayerAddedConn = nil
-            end
-
-            for _, p in ipairs(Players:GetPlayers()) do
-                btResetPlayer(p)
-            end
+            Library:Notify("范围已关闭", 3)
         end
     end,
 })
 
-flupRight:AddSlider("BT_Size", {
+flupRangeA:AddSlider("RangeA_Size", {
     Text = "范围大小",
     Default = 8, Min = 1, Max = 100, Rounding = 0,
-    Callback = function(value) btHbSize = value end,
+    Callback = function(v)
+        RangeA.Size = v
+        if RangeA.Enabled then applyRangeAll(RangeA) end
+    end,
+})
+
+-- ==========================================
+-- 防录屏 Tab：范围白名单（半透明，仅勾选生效）
+-- ==========================================
+local flupRangeB = Tabs.flup:AddRightGroupbox("范围白名单 (半透明)")
+
+flupRangeB:AddToggle("RangeB_Enable", {
+    Text = "开启范围",
+    Default = false,
+    Tooltip = "仅对白名单勾选的玩家生效",
+    Callback = function(state)
+        setRangeB(state)
+    end,
+})
+
+flupRangeB:AddSlider("RangeB_Size", {
+    Text = "范围大小",
+    Default = 8, Min = 1, Max = 100, Rounding = 0,
+    Callback = function(v)
+        RangeB.Size = v
+        if RangeB.Enabled then applyRangeAll(RangeB) end
+    end,
+})
+
+flupRangeB:AddDivider()
+
+local RangeWL_Toggles = {}
+
+local function RangeWL_AddFor(plr)
+    local name = plr.Name
+    if RangeWL_Toggles[name] then return end
+
+    local isAlreadyWL = (_G.RangeWL and _G.RangeWL[name] == true)
+    local dn = plr.DisplayName
+    local display = (dn ~= "" and dn ~= name)
+        and (dn .. " (@" .. name .. ")")
+        or name
+
+    local t = flupRangeB:AddToggle("RangeWL_" .. name, {
+        Text = display,
+        Default = isAlreadyWL,
+        Tooltip = "勾选后范围对该玩家生效",
+        Callback = function(v)
+            _G.RangeWL = _G.RangeWL or {}
+            if v then
+                _G.RangeWL[name] = true
+                if RangeB.Enabled then applyRangeToPlayer(plr, RangeB) end
+            else
+                _G.RangeWL[name] = nil
+                resetRangeToPlayer(plr)
+            end
+        end,
+    })
+    RangeWL_Toggles[name] = t
+end
+
+local function RangeWL_RemoveFor(name)
+    local t = RangeWL_Toggles[name]
+    if t then pcall(function() t:Destroy() end); RangeWL_Toggles[name] = nil end
+    if _G.RangeWL then _G.RangeWL[name] = nil end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then RangeWL_AddFor(p) end
+end
+
+Players.PlayerAdded:Connect(function(p)
+    if p ~= LocalPlayer then task.wait(0.3); RangeWL_AddFor(p) end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if p ~= LocalPlayer then RangeWL_RemoveFor(p.Name) end
+end)
+
+flupRangeB:AddButton({
+    Text = "刷新白名单列表",
+    Func = function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then RangeWL_AddFor(p) end
+        end
+        Library:Notify("范围白名单已刷新", 2)
+    end,
 })
 -- ==================== 枪无后座 (纯净版·无全局变量) ====================
 do
