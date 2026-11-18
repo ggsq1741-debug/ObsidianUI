@@ -214,6 +214,7 @@ local Tabs = {
     qq   = Window:AddTab("删除", "trash-2"),
     rsao = Window:AddTab("娱乐功能+大肥鱼小宠物", "zap"),
     gm   = Window:AddTab("购买", "shopping-cart"),
+    FPS   = Window:AddTab("FPS优化", "rbxassetid://94212016861936"),
     UI   = Window:AddTab("UI 设置", "settings"),
 }
 -----公告-------
@@ -5467,187 +5468,422 @@ rsaoExternal:AddButton({
         end)
     end,
 })
--- ==================== 购买页 ====================
-local gmGroup = Tabs.gm:AddLeftGroupbox("购买（需在建筑范围内）")
+-- ==================== 购买页（纯开关版） ====================
+do
+    local RS = game:GetService("ReplicatedStorage")
+    local LP = game:GetService("Players").LocalPlayer
 
-gmGroup:AddButton({
-    Text = "奥菲当铺出售物品循环售卖",
-    Func = function()
-        task.spawn(function()
-            local Players           = game:GetService("Players")
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local LocalPlayer       = Players.LocalPlayer
+    local SHOP = { Selling = false, BuyingC4 = false, Refilling = false }
 
-            local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
-            if not DevvFolder then
-                return warn("[自动出售] 请在《通缉》游戏内执行")
-            end
+    local function getNet()
+        local df = RS:FindFirstChild("Devv") or RS:FindFirstChild("devv")
+        if not df then return nil end
+        local ok, mod = pcall(require, df)
+        if not ok or not mod then return nil end
+        local ok2, net = pcall(function() return mod.load("Network") end)
+        if not ok2 then return nil end
+        return net
+    end
 
-            local DevvModule   = require(DevvFolder)
-            local load         = DevvModule.load
-            local Network      = load("Network")
-            local ClientData   = load("ClientData")
-            local invokeServer = Network.InvokeServer
-
-            local UpgradeUtil = require(ReplicatedStorage.Shared.Wanted.Modules.UpgradeUtil)
-            local Objects     = require(ReplicatedStorage.Shared.Wanted.Indicies.Objects)
-
-            -- ==================== 配置 ====================
-            local SELL_POS       = Vector3.new(-2826, 37, 1738)
-            local SELL_RADIUS    = 150
-            local NEED_BAG_FULL  = false
-            local BAG_THRESHOLD  = 0.1
-            local SELL_COOLDOWN  = 0.1
-            local LOOP_INTERVAL  = 0.01
-
-            -- ==================== 工具函数 ====================
-            local function getHRP()
-                local char = LocalPlayer.Character
-                return char and char:FindFirstChild("HumanoidRootPart")
-            end
-
-            local function getBagFullPercent()
-                local ok, data = pcall(function()
-                    return ClientData.Get()
-                end)
-                if not ok or type(data) ~= "table" or type(data.bag) ~= "table" then return 0 end
-
-                local totalWeight = 0
-                if type(data.bag.contents) == "table" then
-                    for _, itemName in pairs(data.bag.contents) do
-                        if type(itemName) == "string" then
-                            local w = Objects.GetDataProperty(itemName, "weight")
-                            if type(w) == "number" then totalWeight += w end
+    -- 循环出售（0.1 秒一次）
+    task.spawn(function()
+        local last = 0
+        while true do
+            task.wait(0.05)
+            if SHOP.Selling then
+                local now = tick()
+                if now - last >= 0.1 then
+                    last = now
+                    local Net = getNet()
+                    if Net then
+                        local ok, err = pcall(function()
+                            local c = LP.Character
+                            local h = c and c:FindFirstChild("HumanoidRootPart")
+                            if h and (h.Position - Vector3.new(-2826, 37, 1738)).Magnitude <= 150 then
+                                Net.InvokeServer("sellLoot", "Ofy")
+                            end
+                        end)
+                        if not ok then
+                            SHOP.Selling = false
+                            Library:Notify("出售出错：" .. tostring(err), 8)
                         end
                     end
                 end
-
-                local cap = UpgradeUtil.GetBagCapacity()
-                if type(cap) ~= "number" or cap <= 0 then
-                    cap = type(data.bag.capacity) == "number" and data.bag.capacity or 1
-                end
-                return totalWeight / cap
             end
-
-            local function isBagFull()
-                if LocalPlayer:GetAttribute("isBagFull") then return true end
-                if not LocalPlayer:GetAttribute("hasLootBag") then return false end
-                return getBagFullPercent() >= BAG_THRESHOLD
-            end
-
-            local function isNearSellPos()
-                local hrp = getHRP()
-                if not hrp then return false end
-                return (hrp.Position - SELL_POS).Magnitude <= SELL_RADIUS
-            end
-
-            -- ==================== 出售逻辑 ====================
-            local lastSellTime = 0
-
-            local function trySell()
-                local now = tick()
-                if now - lastSellTime < SELL_COOLDOWN then return end
-                if not isNearSellPos() then return end
-                if NEED_BAG_FULL and not isBagFull() then return end
-
-                pcall(invokeServer, "sellLoot", "Ofy")
-                lastSellTime = now
-            end
-
-            -- ==================== 循环执行 ====================
-            print("[自动出售] 已启动")
-            while true do
-                pcall(function()
-                    if getHRP() then
-                        trySell()
-                    end
-                end)
-                task.wait(LOOP_INTERVAL)
-            end
-        end)
-    end,
-})
-
-gmGroup:AddButton({
-    Text = "C4➖250元",
-    Func = function()
-        local Players           = game:GetService("Players")
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-        local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
-        if not DevvFolder then
-            return warn("[购买] 请在《通缉》游戏内执行")
         end
+    end)
 
-        local DevvModule   = require(DevvFolder)
-        local load         = DevvModule.load
-        local Network      = load("Network")
-        local invokeServer = Network.InvokeServer
+    -- 循环买 C4（1 秒一次）
+    task.spawn(function()
+        local acc = 0
+        while true do
+            local dt = task.wait(0.05)
+            if SHOP.BuyingC4 then
+                acc = acc + dt
+                if acc >= 1.0 then
+                    acc = 0
+                    local Net = getNet()
+                    if Net then
+                        local ok, err = pcall(function()
+                            Net.InvokeServer("purchaseAmmo", {
+                                itemName       = "C4",
+                                itemType       = "Ammo",
+                                ammoToBuyIndex = 1,
+                                categoryName   = "Explosives",
+                                shopName       = "Guns",
+                            })
+                        end)
+                        if not ok then
+                            SHOP.BuyingC4 = false
+                            Library:Notify("购买出错：" .. tostring(err), 10)
+                        end
+                    end
+                end
+            else
+                acc = 0
+            end
+        end
+    end)
 
-        -- 购买参数
-        local BuyParams = {
-            itemName       = "C4",
-            itemType       = "Ammo",
-            ammoToBuyIndex = 1,
-            categoryName   = "Explosives",
-            shopName       = "Guns"
+    -- 循环补弹（0.1 秒一次）
+    task.spawn(function()
+        local acc = 0
+        while true do
+            local dt = task.wait(0.05)
+            if SHOP.Refilling then
+                acc = acc + dt
+                if acc >= 0.1 then
+                    acc = 0
+                    local Net = getNet()
+                    if Net then
+                        local ok, err = pcall(function()
+                            Net.InvokeServer("purchaseAmmo", { refillAll = true })
+                        end)
+                        if not ok then
+                            SHOP.Refilling = false
+                            Library:Notify("补弹出错：" .. tostring(err), 10)
+                        end
+                    end
+                end
+            else
+                acc = 0
+            end
+        end
+    end)
+
+    local gmGroup = Tabs.gm:AddLeftGroupbox("购买（需在建筑范围内）")
+
+    gmGroup:AddToggle("Shop_SellLoop", {
+        Text = "奥菲当铺循环出售",
+        Default = false,
+        Callback = function(v) SHOP.Selling = v end,
+    })
+
+    gmGroup:AddToggle("Shop_C4Loop", {
+        Text = "循环购买 C4（250元）",
+        Default = false,        
+        Callback = function(v) SHOP.BuyingC4 = v end,
+    })
+
+    gmGroup:AddToggle("Shop_Refill", {
+        Text = "循环补充弹药",
+        Default = false,
+        Callback = function(v) SHOP.Refilling = v end,
+    })
+end
+-- ==========================================
+-- FPS优化 Tab（字符串通知版）
+-- ==========================================
+do
+    local function safeNotify(text, dur)
+        pcall(function()
+            Library:Notify(tostring(text), dur or 6)
+        end)
+    end
+
+    local function step(label, fn)
+        local ok, err = pcall(fn)
+        if not ok then
+            local msg = tostring(err)
+            if msg == "nil" or msg == "" then
+                msg = "错误值为空（被调用对象不存在）"
+            end
+            error("【" .. label .. "】" .. msg, 0)
+        end
+    end
+
+    local okAll, errAll = pcall(function()
+
+        step("环境检查", function()
+            if not Library then error("Library 不存在", 0) end
+            if not Tabs then error("Tabs 不存在，这段放太靠前了", 0) end
+            if not Tabs.FPS then error("Tabs.FPS 不存在，检查标签页是否创建", 0) end
+        end)
+
+        local Lighting = game:GetService("Lighting")
+
+        local PERF = {
+            Particles = false, Shadows = false, Effects = false,
+            Materials = false, Water = false,
         }
 
-        local ok, err = pcall(function()
-            invokeServer("purchaseAmmo", BuyParams)
-        end)
+        local particleRecords, particleSeen = {}, {}
+        local effectRecords, effectSeen     = {}, {}
+        local materialRecords, materialSeen = {}, {}
+        local waterRecord, shadowRecord     = nil, nil
 
-        if ok then
-            print("[购买] C4 购买请求已发送")
-        else
-            warn("[购买] 失败: " .. tostring(err))
+        -- 粒子
+        local PARTICLE_CLASS = {
+            ParticleEmitter = true, Smoke = true, Fire = true,
+            Sparkles = true, Trail = true, Beam = true,
+        }
+
+        local function disableOneParticle(obj)
+            if particleSeen[obj] then return end
+            local okVal, was = pcall(function() return obj.Enabled end)
+            if not okVal then return end
+            particleSeen[obj] = true
+            table.insert(particleRecords, { obj = obj, was = was })
+            pcall(function() obj.Enabled = false end)
         end
-    end,
-})
 
-local refillRunning = false  -- 防止重复启动
-
-gmGroup:AddButton({
-    Text = "循环补充弹药",
-    Func = function()
-        if refillRunning then return end  -- 已在运行则忽略
-        refillRunning = true
-
-        task.spawn(function()
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-            local DevvFolder = ReplicatedStorage:FindFirstChild("Devv") or ReplicatedStorage:FindFirstChild("devv")
-            if not DevvFolder then
-                warn("[补弹] 请在《通缉》游戏内执行")
-                refillRunning = false
-                return
-            end
-
-            local DevvModule   = require(DevvFolder)
-            local load         = DevvModule.load
-            local Network      = load("Network")
-            local invokeServer = Network.InvokeServer
-
-            local RefillParams = {
-                refillAll = true
-            }
-
-            print("[补弹] 循环已启动")
-
-            while true do
-                local ok, err = pcall(function()
-                    invokeServer("purchaseAmmo", RefillParams)
-                end)
-
-                if not ok then
-                    warn("❌ 补弹失败（可能是没子弹了，或者不在补给点）: " .. tostring(err))
+        local function applyParticles(on)
+            PERF.Particles = on
+            if on then
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if PARTICLE_CLASS[obj.ClassName] then disableOneParticle(obj) end
                 end
+                return 0
+            else
+                local n = 0
+                for _, rec in ipairs(particleRecords) do
+                    local obj = rec.obj
+                    if obj and obj.Parent then
+                        pcall(function() obj.Enabled = rec.was end)
+                        n = n + 1
+                    end
+                end
+                particleRecords, particleSeen = {}, {}
+                return n
+            end
+        end
 
-                task.wait(0.1)  -- 0.1秒补一次
+        workspace.DescendantAdded:Connect(function(obj)
+            if PERF.Particles and PARTICLE_CLASS[obj.ClassName] then
+                task.defer(function()
+                    if obj and obj.Parent and PERF.Particles then
+                        disableOneParticle(obj)
+                    end
+                end)
             end
         end)
-    end,
-})
+
+        -- 阴影
+        local function applyShadows(on)
+            PERF.Shadows = on
+            if on then
+                if shadowRecord == nil then shadowRecord = Lighting.GlobalShadows end
+                Lighting.GlobalShadows = false
+            elseif shadowRecord ~= nil then
+                Lighting.GlobalShadows = shadowRecord
+                shadowRecord = nil
+            end
+        end
+
+        -- 后处理
+        local EFFECT_CLASS = {
+            Atmosphere = true, BloomEffect = true, BlurEffect = true,
+            DepthOfFieldEffect = true, SunRaysEffect = true,
+        }
+
+        local function applyEffects(on)
+            PERF.Effects = on
+            if on then
+                for _, obj in ipairs(Lighting:GetDescendants()) do
+                    if EFFECT_CLASS[obj.ClassName] and not effectSeen[obj] then
+                        local okVal, was = pcall(function() return obj.Enabled end)
+                        if okVal then
+                            effectSeen[obj] = true
+                            table.insert(effectRecords, { obj = obj, was = was })
+                            pcall(function() obj.Enabled = false end)
+                        end
+                    end
+                end
+                return 0
+            else
+                local n = 0
+                for _, rec in ipairs(effectRecords) do
+                    local obj = rec.obj
+                    if obj and obj.Parent then
+                        pcall(function() obj.Enabled = rec.was end)
+                        n = n + 1
+                    end
+                end
+                effectRecords, effectSeen = {}, {}
+                return n
+            end
+        end
+
+        -- 材质
+        local function simplifyOne(part)
+            if not part:IsA("BasePart") then return end
+            if materialSeen[part] then return end
+            local okMat, mat = pcall(function() return part.Material end)
+            if not okMat then return end
+            materialSeen[part] = true
+            table.insert(materialRecords, { obj = part, mat = mat })
+            pcall(function() part.Material = Enum.Material.SmoothPlastic end)
+        end
+
+        local function applyMaterials(on)
+            PERF.Materials = on
+            if on then
+                for _, obj in ipairs(workspace:GetDescendants()) do simplifyOne(obj) end
+                return 0
+            else
+                local n = 0
+                for _, rec in ipairs(materialRecords) do
+                    local part = rec.obj
+                    if part and part.Parent then
+                        pcall(function() part.Material = rec.mat end)
+                        n = n + 1
+                    end
+                end
+                materialRecords, materialSeen = {}, {}
+                return n
+            end
+        end
+
+        workspace.DescendantAdded:Connect(function(obj)
+            if PERF.Materials then
+                task.defer(function()
+                    if obj and obj.Parent and PERF.Materials then simplifyOne(obj) end
+                end)
+            end
+        end)
+
+        -- 水面
+        local function applyWater(on)
+            PERF.Water = on
+            local terrain = workspace:FindFirstChildOfClass("Terrain")
+            if not terrain then return 0 end
+
+            if on then
+                if not waterRecord then
+                    waterRecord = {
+                        WaveSize     = terrain.WaterWaveSize,
+                        WaveSpeed    = terrain.WaterWaveSpeed,
+                        Reflectance  = terrain.WaterReflectance,
+                        Transparency = terrain.WaterTransparency,
+                    }
+                end
+                pcall(function()
+                    terrain.WaterWaveSize     = 0
+                    terrain.WaterWaveSpeed    = 0
+                    terrain.WaterReflectance  = 0
+                    terrain.WaterTransparency = 1
+                end)
+                return 0
+            elseif waterRecord then
+                pcall(function()
+                    terrain.WaterWaveSize     = waterRecord.WaveSize
+                    terrain.WaterWaveSpeed    = waterRecord.WaveSpeed
+                    terrain.WaterReflectance  = waterRecord.Reflectance
+                    terrain.WaterTransparency = waterRecord.Transparency
+                end)
+                waterRecord = nil
+                return 1
+            end
+            return 0
+        end
+
+        -- 还原
+        local function restoreAll()
+            local nPart = applyParticles(false)
+            local nFx   = applyEffects(false)
+            local nMat  = applyMaterials(false)
+            local nWtr  = applyWater(false)
+            applyShadows(false)
+
+            safeNotify(string.format("还原完成：粒子 %d / 特效 %d / 材质 %d / 水面 %d",
+                nPart, nFx, nMat, nWtr), 4)
+        end
+
+        -- 界面
+        step("创建分组", function()
+            fpsLeft  = Tabs.FPS:AddLeftGroupbox("降质项")
+            fpsRight = Tabs.FPS:AddRightGroupbox("批量与说明")
+        end)
+
+        step("创建开关", function()
+            fpsLeft:AddToggle("FPS_Particles", {
+                Text = "关闭所有粒子",
+                Default = false,
+                Tooltip = "烟雾 / 火花 / 拖尾 / 光束",
+                Callback = function(v) applyParticles(v) end,
+            })
+
+            fpsLeft:AddToggle("FPS_Shadows", {
+                Text = "关闭阴影",
+                Default = false,
+                Callback = function(v) applyShadows(v) end,
+            })
+
+            fpsLeft:AddToggle("FPS_Effects", {
+                Text = "关闭后处理",
+                Default = false,
+                Tooltip = "大气 / 泛光 / 景深 / 光晕",
+                Callback = function(v) applyEffects(v) end,
+            })
+
+            fpsLeft:AddToggle("FPS_Materials", {
+                Text = "材质简化",
+                Default = false,
+                Tooltip = "全部换成平滑塑料",
+                Callback = function(v) applyMaterials(v) end,
+            })
+
+            fpsLeft:AddToggle("FPS_Water", {
+                Text = "水面简化",
+                Default = false,
+                Tooltip = "关掉水面波浪和反射",
+                Callback = function(v) applyWater(v) end,
+            })
+        end)
+
+        step("创建按钮", function()
+            fpsRight:AddButton({
+                Text = "一键全开降质",
+                Func = function()
+                    applyParticles(true)
+                    applyShadows(true)
+                    applyEffects(true)
+                    applyMaterials(true)
+                    applyWater(true)
+                    safeNotify("已全量降质", 2)
+                end,
+            })
+
+            fpsRight:AddButton({
+                Text = "一键全部还原",
+                Func = restoreAll,
+            })
+
+            fpsRight:AddButton({
+                Text = "功能说明",
+                Func = function()
+                    safeNotify("关粒子提帧最明显；关阴影白天明显；关后处理去泛光景深；材质简化变平滑塑料；水面简化关波浪反射", 6)
+                end,
+            })
+        end)
+    end)
+
+    if not okAll then
+        safeNotify("FPS 模块加载失败：" .. tostring(errAll), 12)
+    else
+        safeNotify("FPS 模块已加载", 3)
+    end
+end
 -- ==================== UI 设置页 ====================
 local MenuGroup = Tabs.UI:AddLeftGroupbox("菜单设置")
 
