@@ -254,7 +254,7 @@ ggLeft:AddDivider()
 ggLeft:AddLabel("更新内容：")
 ggLeft:AddLabel("• 新版本")
 ggLeft:AddLabel("• 由于前面光环等功能失效现已修复")
-ggLeft:AddLabel("• 2026/10/16/优化进阶瞄准选项还有一些我不知道")
+ggLeft:AddLabel("• 2026/11/18/优化进阶瞄准")
 ggLeft:AddDivider()
 
 -- ==================== 右侧：使用说明 ====================
@@ -264,7 +264,7 @@ ggRight:AddLabel("1. 跑步拉回时")
 ggRight:AddLabel("   请连续跳跃再奔跑")
 ggRight:AddDivider()
 ggRight:AddLabel("2.添加新功能")
-ggRight:AddLabel("万圣节刷钥匙")
+ggRight:AddLabel("优化辅助瞄准")
 ggRight:AddDivider()
 ggRight:AddLabel("3. ESP 如果没显示")
 ggRight:AddLabel("   先把总开关打开")
@@ -1544,7 +1544,7 @@ do
     }
     
     -- ⭐ 修改默认首次播放为「游京」
-    local DEFAULT_TRACK = "游京"
+    local DEFAULT_TRACK = "美国人"
 
     local trackNames = {}
     for name in pairs(TRACKS) do table.insert(trackNames, name) end
@@ -2693,6 +2693,8 @@ local function SetupAimAssist()
         ShowFOV = false, FOVRadius = 250, FOVFixed = true,
         FOVColor = Color3.fromRGB(190, 120, 255),
         FOVThickness = 1.5, FOVTransparency = 0.3, FOVSides = 64,
+        IgCivilian = false,                            -- ⭐ 平民不瞄
+        IgLowHealth = false, LowHealthMin = 200,       -- ⭐ 低血量不瞄（倒地的人血量已到底，这一条一并覆盖）
     }
     local originalAimStep = AimAssistModule.Step
     if type(originalAimStep) ~= "function" then originalAimStep = function() end end
@@ -2715,14 +2717,27 @@ local function SetupAimAssist()
     end
 
     -- ========================================
-    -- 阵营 / 队伍判定
+    -- ⭐ 阵营 / 队伍判定（超强扫描防漏）
     -- ========================================
     local function getCamp(plr)
-        if not plr then return nil end
+        if not plr then return "civilian" end
+
+        -- 1. 查 Attribute
         local team = plr:GetAttribute("currentTeam")
-        if type(team) == "string" then return team end
-        if plr.Team then return plr.Team.Name end
-        return nil
+        if type(team) == "string" and team ~= "" then
+            return string.lower(team)
+        end
+
+        -- 2. 查原生 Team
+        if plr.Team then
+            local t = string.lower(plr.Team.Name)
+            if t:find("police") then return "police" end
+            if t:find("syndicate") or t:find("criminal") or t:find("gang") then return "syndicate" end
+            return "civilian"
+        end
+
+        -- 3. 兜底当平民
+        return "civilian"
     end
 
     local function getMyCamp() return getCamp(LocalPlayer) end
@@ -2731,10 +2746,10 @@ local function SetupAimAssist()
         if plr == LocalPlayer then return true end
         local myCamp = getMyCamp()
         local pCamp  = getCamp(plr)
-        if myCamp == nil or pCamp == nil then
-            return plr.Team ~= nil and plr.Team == LocalPlayer.Team
-        end
-        return myCamp == pCamp
+
+        -- 如果大家都是平民，或者阵营一致，算队友
+        if myCamp == pCamp then return true end
+        return false
     end
 
     -- ========================================
@@ -2768,20 +2783,54 @@ local function SetupAimAssist()
         return true
     end
 
-    -- ⭐ 白名单最高优先：勾上 = 直接跳过，不瞄
+    -- ⭐ 白名单及阵营过滤
     local function isAllowedTarget(plr)
         if _G.WL and _G.WL[plr.Name] == true then return false end
 
+        local camp = getCamp(plr)
+        local isPolice = (camp == "police")
+        local isSyndicate = (camp == "syndicate")
+        local isCriminal = (camp == "criminal")
+        -- 如果三个都不是，肯定就是平民
+        local isCivilian = not (isPolice or isSyndicate or isCriminal)
+
+        -- ⭐ 平民不瞄（严格拦截）
+        if AA.IgCivilian and isCivilian then
+            return false
+        end
+
+        -- ⭐ 低血量不瞄（倒地目标血量已到底，这一条同时覆盖倒地）
+        if AA.IgLowHealth then
+            local pchar = plr.Character
+            local phum  = pchar and pchar:FindFirstChildOfClass("Humanoid")
+            local hp
+            if phum then
+                hp = phum.Health
+            else
+                -- 兜底：有些游戏血量挂在 Attribute 上
+                local a = plr:GetAttribute("Health") or plr:GetAttribute("health") or plr:GetAttribute("hp")
+                if type(a) == "number" then hp = a end
+            end
+            -- 拿不到血量就当它满血，照常瞄（避免整个功能废掉）
+            if type(hp) == "number" and hp < AA.LowHealthMin then
+                return false
+            end
+        end
+
+        -- 指定阵营过滤
         if AA.CampFilter ~= "全部" then
-            local camp = getCamp(plr)
-            if AA.CampFilter == "仅警察" and camp ~= "police"    then return false end
-            if AA.CampFilter == "仅帮派" and camp ~= "syndicate" then return false end
-            if AA.CampFilter == "仅平民" and camp ~= "civilian"  then return false end
-            return true
-        else
-            if AA.IgnoreTeammate and isTeammate(plr) then return false end
+            if AA.CampFilter == "仅警察" and not isPolice then return false end
+            if AA.CampFilter == "仅帮派" and not isSyndicate then return false end
+            if AA.CampFilter == "仅平民" and not isCivilian then return false end
             return true
         end
+
+        -- 忽略队友
+        if AA.IgnoreTeammate and isTeammate(plr) then
+            return false
+        end
+
+        return true
     end
 
     -- ========================================
@@ -3088,6 +3137,23 @@ local function SetupAimAssist()
         Default = true,
         Tooltip = "选了具体阵营后此开关自动失效",
     }):OnChanged(function(v) AA.IgnoreTeammate = v end)
+
+    aaTeam:AddToggle("AA_IgCivilian", {
+        Text = "平民不瞄准（强力扫描）",
+        Default = false,
+    }):OnChanged(function(v) AA.IgCivilian = v end)
+
+    -- ⭐ 低血量不瞄（替代原「倒地不瞄」）
+    aaTeam:AddToggle("AA_IgLowHealth", {
+        Text = "血量低于阈值不瞄准",
+        Default = false,
+        Tooltip = "目标血量低于阈值时不吸附",
+    }):OnChanged(function(v) AA.IgLowHealth = v end)
+
+    aaTeam:AddSlider("AA_LowHealthMin", {
+        Text = "血量阈值",
+        Min = 1, Max = 400, Default = 200, Rounding = 0,
+    }):OnChanged(function(v) AA.LowHealthMin = v end)
 
     aaTeam:AddDropdown("AA_CampFilter", {
         Text = "只吸附指定阵营",
