@@ -890,8 +890,31 @@ flupLeft:AddButton({
 -- ==========================================
 -- 范围模块（Obsidian 版 · 双样式 + 原始属性备份 + 白名单）
 -- ==========================================
-local RangeA = {Enabled=false, Size=8, Transparency=1,    Material=Enum.Material.ForceField} -- 透明,全体生效
-local RangeB = {Enabled=false, Size=8, Transparency=0.85, Material=Enum.Material.Neon}        -- 半透明,仅白名单
+-- ==========================================
+-- 范围模块（Obsidian 版 · 双样式 + 颜色预设 + 原始属性备份 + 白名单）
+-- ==========================================
+local RangeA = {Enabled=false, Size=8, Transparency=1,    Color=Color3.fromRGB(190,190,190), Material=Enum.Material.ForceField} -- 全体生效
+local RangeB = {Enabled=false, Size=8, Transparency=0.85, Color=Color3.fromRGB(190,190,190), Material=Enum.Material.Neon}       -- 仅白名单生效
+
+-- 颜色预设
+local RANGE_COLORS = {
+    ["透明"] = { Color = Color3.fromRGB(190,190,190), Transparency = 1,    Material = Enum.Material.ForceField },
+    ["红色"] = { Color = Color3.fromRGB(255, 60, 60), Transparency = 0.5, Material = Enum.Material.Neon },
+    ["绿色"] = { Color = Color3.fromRGB(60, 255, 60),  Transparency = 0.5, Material = Enum.Material.Neon },
+    ["蓝色"] = { Color = Color3.fromRGB(60, 120, 255), Transparency = 0.5, Material = Enum.Material.Neon },
+    ["黄色"] = { Color = Color3.fromRGB(255, 230, 60), Transparency = 0.5, Material = Enum.Material.Neon },
+    ["紫色"] = { Color = Color3.fromRGB(180, 60, 255), Transparency = 0.5, Material = Enum.Material.Neon },
+    ["白色"] = { Color = Color3.fromRGB(255, 255, 255), Transparency = 0.5, Material = Enum.Material.Neon },
+}
+local RANGE_COLOR_OPTIONS = { "透明", "红色", "绿色", "蓝色", "黄色", "紫色", "白色" }
+
+local function applyRangeColorPreset(cfg, colorName)
+    local c = RANGE_COLORS[colorName]
+    if not c then return end
+    cfg.Color        = c.Color
+    cfg.Transparency = c.Transparency
+    cfg.Material     = c.Material
+end
 
 local rangeConns = {}
 local RangeOrig  = {}
@@ -916,12 +939,11 @@ local function applyRangePart(hrp, s, cfg)
     saveOrig(hrp)
     hrp.Size         = Vector3.new(s, s, s)
     hrp.Transparency = cfg.Transparency
-    hrp.Color        = Color3.fromRGB(190, 190, 190)
+    hrp.Color        = cfg.Color or Color3.fromRGB(190, 190, 190)
     hrp.Material     = cfg.Material
     hrp.CanCollide   = false
 end
 
--- 按原始属性还原（修复关闭后躯干白方块）
 local function resetRangePart(hrp)
     local o = RangeOrig[hrp]
     if not o then return end
@@ -1014,18 +1036,19 @@ local function setRangeB(on)
 end
 
 -- ==========================================
--- 防录屏 Tab：范围（透明，全体生效）
+-- 防录屏 Tab：范围（全体生效）
 -- ==========================================
-local flupRangeA = Tabs.flup:AddRightGroupbox("范围 (透明)")
+local flupRangeA = Tabs.flup:AddRightGroupbox("范围 (全体)")
 
 flupRangeA:AddToggle("RangeA_Enable", {
     Text = "开启范围",
     Default = false,
-    Tooltip = "全体玩家碰撞箱隐形放大（完全透明）",
+    Tooltip = "全体玩家碰撞箱放大，作用于所有人",
     Callback = function(state)
         setRangeA(state)
         if state then
-            Library:Notify("范围已开启（透明·全体）", 3)
+            local isClear = (RangeA.Transparency == 1)
+            Library:Notify("范围已开启（" .. (isClear and "透明" or "上色") .. "·全体）", 3)
         else
             Library:Notify("范围已关闭", 3)
         end
@@ -1041,10 +1064,26 @@ flupRangeA:AddSlider("RangeA_Size", {
     end,
 })
 
+flupRangeA:AddDropdown("RangeA_Color", {
+    Text = "范围颜色",
+    Values = RANGE_COLOR_OPTIONS,
+    Default = "透明",
+    Multi = false,
+    Callback = function(v)
+        applyRangeColorPreset(RangeA, v)
+        if RangeA.Enabled then applyRangeAll(RangeA) end
+        if v == "透明" then
+            Library:Notify("范围颜色 → 透明", 3)
+        else
+            Library:Notify("范围颜色 → " .. v .. "", 3)
+        end
+    end,
+})
+
 -- ==========================================
--- 防录屏 Tab：范围白名单（半透明，仅勾选生效）
+-- 防录屏 Tab：范围白名单（仅勾选生效）
 -- ==========================================
-local flupRangeB = Tabs.flup:AddRightGroupbox("范围白名单 (半透明)")
+local flupRangeB = Tabs.flup:AddRightGroupbox("范围白名单 (仅勾选生效)")
 
 flupRangeB:AddToggle("RangeB_Enable", {
     Text = "开启范围",
@@ -1061,6 +1100,18 @@ flupRangeB:AddSlider("RangeB_Size", {
     Callback = function(v)
         RangeB.Size = v
         if RangeB.Enabled then applyRangeAll(RangeB) end
+    end,
+})
+
+flupRangeB:AddDropdown("RangeB_Color", {
+    Text = "范围颜色",
+    Values = RANGE_COLOR_OPTIONS,
+    Default = "透明",
+    Multi = false,
+    Callback = function(v)
+        applyRangeColorPreset(RangeB, v)
+        if RangeB.Enabled then applyRangeAll(RangeB) end
+        Library:Notify("白名单范围颜色 → " .. v, 3)
     end,
 })
 
