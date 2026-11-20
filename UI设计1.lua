@@ -198,7 +198,7 @@ local Tabs = {
     gg   = Window:AddTab("公告", "megaphone"),
     wj   = Window:AddTab("玩家", "users"),
     flup   = Window:AddTab("防录屏设置选项", "rbxassetid://7733655834"),
-    qiang   = Window:AddTab("枪无后座", "rbxassetid://140713420056179"),
+    qiang   = Window:AddTab("枪无全部属性修改", "rbxassetid://140713420056179"),
     zx   = Window:AddTab("准心设置", "rbxassetid://7733666258"),
     yy   = Window:AddTab("音乐 Music", "rbxassetid://7734020554"),
     sf   = Window:AddTab("甩飞", "rbxassetid://7733799371"),
@@ -224,7 +224,7 @@ local ggRight = Tabs.gg:AddRightGroupbox("使用说明")
 
 ggLeft:AddLabel("欢迎使用 港猫的通缉中国希望")
 ggLeft:AddDivider()
-ggLeft:AddLabel("2026.11.15更新枪械无后座")
+ggLeft:AddLabel("2026.11.20更新枪械属性修改")
 ggLeft:AddLabel("售后1109337389🟢")
 
 -- ⭐ 复制售后群（放在售后信息下方，醒目位置）
@@ -1174,83 +1174,321 @@ flupRangeB:AddButton({
         Library:Notify("范围白名单已刷新", 2)
     end,
 })
--- ==================== 枪无后座 (纯净版·无全局变量) ====================
+-- ==================== 枪械增强 (完全原版移植) ====================
 do
-    local qiangGroup = Tabs.qiang:AddLeftGroupbox("无后座")
-    local gunMods = {}
-    local gunOriginals = {}
+    --// ================= 模块 =================
+    local Devv, ClientTools
+    pcall(function()
+        Devv = require(game:GetService("ReplicatedStorage"):WaitForChild("Devv"))
+        ClientTools = Devv.load("ClientTools")
+    end)
+    
+    local function getTool()
+        if not ClientTools then return nil end
+        local okT, t = pcall(function() return ClientTools.GetLocalEquippedTool() end)
+        return okT and t or nil
+    end
 
-    -- 深度解冻函数
-    local function deepUnfreeze(tbl)
+    local function getShooter(tool)
+        if not tool or type(tool.GetComponent) ~= "function" then return nil end
+        local okS, s = pcall(function() return tool:GetComponent("Shooter") end)
+        return okS and s or nil
+    end
+
+    --// ================= 配置 =================
+    local W = {
+        InfAmmo      = false,
+        AutoData     = false,
+        AutoValue    = "自动推导",
+        RateMult     = 1,
+        RateOverride = 0,
+        UnlockFire   = false,
+        NoRecoil     = false,
+    }
+
+    --// ================= 射速字段 =================
+    local rateOrigin = setmetatable({}, { __mode = "k" })
+
+    local RATE_INTERVAL = {
+        "fireDebounce", "pumpFireDebounce", "fireDelay", "fireInterval",
+        "shootDelay", "shotDelay", "cooldown", "delay", "timeBetweenShots",
+        "fireTime", "cooldownTime", "delayBetweenShots",
+    }
+
+    local RATE_SPEED = {
+        "fireRate", "rate", "rpm", "cadence", "burstRate",
+        "shotsPerSecond", "shotsPerMinute", "roundsPerMinute", "firePerSecond",
+    }
+
+    local function applyRate(tbl)
         if type(tbl) ~= "table" then return end
-        if setreadonly then pcall(setreadonly, tbl, false) end
-        local mt = getrawmetatable(tbl)
-        if mt and mt.__newindex then pcall(setreadonly, mt, false) end
-        for _, v in pairs(tbl) do
-            if type(v) == "table" then deepUnfreeze(v) end
+        if not rateOrigin[tbl] then rateOrigin[tbl] = {} end
+        local o = rateOrigin[tbl]
+
+        for _, k in ipairs(RATE_INTERVAL) do
+            local v = tbl[k]
+            if type(v) == "number" and v > 0 then
+                if o[k] == nil then o[k] = v end
+                local target = (W.RateOverride > 0) and W.RateOverride or (o[k] / W.RateMult)
+                if target < 0.002 then target = 0.002 end
+                pcall(function() tbl[k] = target end)
+            end
+        end
+
+        for _, k in ipairs(RATE_SPEED) do
+            local v = tbl[k]
+            if type(v) == "number" and v > 0 then
+                if o[k] == nil then o[k] = v end
+                local base = o[k]
+                local perMinute = base > 60
+
+                local target
+                if W.RateOverride > 0 then
+                    local perSec = 1 / math.max(W.RateOverride, 0.002)
+                    target = perMinute and (perSec * 60) or perSec
+                else
+                    target = base * W.RateMult
+                end
+
+                pcall(function() tbl[k] = target end)
+            end
         end
     end
 
-    -- 异步读取枪械数据，防止卡加载
-    task.spawn(function()
-        local base = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
-        if base then base = base:FindFirstChild("Wanted") end
-        if base then base = base:FindFirstChild("Indicies") end
-        if base then base = base:FindFirstChild("Objects") end
-        if base then base = base:FindFirstChild("Guns") end
-        
-        if base then
-            for _, mod in pairs(base:GetDescendants()) do
-                if mod:IsA("ModuleScript") then
-                    local ok, data = pcall(require, mod)
-                    if ok and type(data) == "table" and data.name and data.recoil then
-                        table.insert(gunMods, data)
-                        gunOriginals[data.name] = {
-                            recoil = table.clone(data.recoil),
-                            aim = table.clone(data.aim or {})
-                        }
+    --// ================= 全自动 =================
+    local morphed = setmetatable({}, { __mode = "k" })
+
+    local AUTO_MAP = {
+        semi = "Auto", single = "Auto", pump = "Auto",
+        burst = "Auto", bolt = "Auto", boltaction = "Auto",
+        singleshot = "Auto", pumpaction = "Auto",
+    }
+
+    local function resolveTarget(tool, origMode)
+        if W.AutoValue ~= "自动推导" then return W.AutoValue end
+        local m = origMode or tool.fireMode
+        if type(m) == "string" then
+            local key = m:lower():gsub("%s", "")
+            if AUTO_MAP[key] then return AUTO_MAP[key] end
+            if key == "auto" or key == "automatic" or key == "fullauto" then return m end
+        end
+        return "Auto"
+    end
+
+    local function capture(tool)
+        local rec = morphed[tool]
+        if rec then return rec end
+
+        local sh = getShooter(tool)
+        rec = {
+            fireMode     = tool.fireMode,
+            isPumpAction = tool.isPumpAction,
+            stateFire    = (type(tool.toolState) == "table") and tool.toolState.fireMode or nil,
+            shooterFire  = sh and sh.fireMode or nil,
+            shooterPump  = sh and sh.isPumpAction or nil,
+            target       = nil,
+        }
+        rec.target = resolveTarget(tool, tool.fireMode)
+        morphed[tool] = rec
+        return rec
+    end
+
+    local function applyAuto(tool)
+        local rec = capture(tool)
+        local value = (W.AutoValue ~= "自动推导") and W.AutoValue or rec.target
+
+        if tool.fireMode ~= value then
+            pcall(function() tool.fireMode = value end)
+        end
+        if tool.isPumpAction then
+            pcall(function() tool.isPumpAction = false end)
+        end
+        if type(tool.toolState) == "table" and tool.toolState.fireMode ~= value then
+            pcall(function() tool.toolState.fireMode = value end)
+        end
+
+        pcall(function() tool.overrideChamber = true end)
+        if type(tool.toolState) == "table" then
+            pcall(function() tool.toolState.chambered = true end)
+        end
+
+        local sh = getShooter(tool)
+        if sh then
+            if sh.fireMode ~= value then
+                pcall(function() sh.fireMode = value end)
+            end
+            if sh.isPumpAction then
+                pcall(function() sh.isPumpAction = false end)
+            end
+        end
+    end
+
+    local function restoreOne(tool, rec)
+        pcall(function() tool.fireMode = rec.fireMode end)
+        pcall(function() tool.isPumpAction = rec.isPumpAction end)
+        if type(tool.toolState) == "table" and rec.stateFire ~= nil then
+            pcall(function() tool.toolState.fireMode = rec.stateFire end)
+        end
+        local sh = getShooter(tool)
+        if sh then
+            if rec.shooterFire ~= nil then pcall(function() sh.fireMode = rec.shooterFire end) end
+            if rec.shooterPump ~= nil then pcall(function() sh.isPumpAction = rec.shooterPump end) end
+        end
+    end
+
+    local function restoreAll()
+        local list = {}
+        for tool, rec in pairs(morphed) do
+            table.insert(list, { tool = tool, rec = rec })
+        end
+        for _, e in ipairs(list) do
+            if e.tool then restoreOne(e.tool, e.rec) end
+            morphed[e.tool] = nil
+        end
+    end
+
+    --// ================= 暴力解锁开火冷却 =================
+    local function unlockShooter(sh)
+        if not sh then return end
+        for _, k in ipairs({ "shooting", "firing", "isFiring", "canFire", "canShoot", "isReloading" }) do
+            if type(sh[k]) == "boolean" then
+                pcall(function() sh[k] = false end)
+            end
+        end
+        for _, k in ipairs({ "lastFire", "lastShot", "lastShotTime", "nextFire", "nextShotTime", "fireTimer", "cooldownTimer" }) do
+            if type(sh[k]) == "number" then
+                pcall(function() sh[k] = 0 end)
+            end
+        end
+    end
+
+    --// ================= 每帧维护 =================
+    local wasAuto = false
+
+    RunService.Heartbeat:Connect(function()
+        if wasAuto and not W.AutoData then
+            restoreAll()
+            N("全自动", "已还原所有枪械模式", 3)
+        end
+        wasAuto = W.AutoData
+
+        local tool = getTool()
+        if not tool then return end
+
+        if W.AutoData then
+            applyAuto(tool)
+        end
+
+        local rateOn = (W.RateMult ~= 1) or (W.RateOverride > 0)
+        if rateOn then
+            applyRate(tool)
+            applyRate(tool.ammoData)
+        end
+
+        local shooter = getShooter(tool)
+        if not shooter then return end
+
+        if rateOn then applyRate(shooter) end
+        if W.UnlockFire then unlockShooter(shooter) end
+
+        if W.NoRecoil then
+            pcall(function()
+                if type(shooter.spread) == "number" then shooter.spread = 0 end
+                if type(shooter.recoilMod) == "number" then shooter.recoilMod = 0 end
+            end)
+            if type(tool.aim) == "table" then
+                pcall(function() tool.aim.spreadAngle = 0.0001 end)
+            end
+            if type(tool.recoil) == "table" then
+                for k, v in pairs(tool.recoil) do
+                    if type(v) == "number" then
+                        pcall(function() tool.recoil[k] = 0.0001 end)
                     end
                 end
             end
         end
+
+        if not W.InfAmmo then return end
+
+        local mag = tool.ammoData and tool.ammoData.magSize
+        if type(mag) == "number" and mag > 0 then
+            pcall(function() shooter.ammo = mag end)
+        end
+        pcall(function() shooter.totalAmmo = -1 end)
+
+        if type(tool.toolState) == "table" then
+            pcall(function()
+                tool.toolState.ammo = mag or tool.toolState.ammo
+                tool.toolState.totalAmmo = -1
+            end)
+        end
     end)
 
-    -- 唯一的 UI 开关
-    qiangGroup:AddToggle("Qiang_NoRecoil", {
-        Text = "开启无后座",
+    --// ================= UI (完全使用 N 函数弹通知) =================
+    local AmmoBox = Tabs.qiang:AddLeftGroupbox("弹药")
+
+    AmmoBox:AddToggle("W_InfAmmo", {
+        Text = "无限子弹娱乐",
         Default = false,
-        Tooltip = "开启后后座力极低，关闭自动还原",
-        Callback = function(state)
-            task.spawn(function()
-                for _, data in ipairs(gunMods) do
-                    deepUnfreeze(data)
-                    if state then
-                        pcall(function()
-                            if data.recoil then
-                                for k, v in pairs(data.recoil) do
-                                    if type(v) == "number" then data.recoil[k] = 0.0001 end
-                                end
-                            end
-                            if data.aim and data.aim.spreadAngle then
-                                data.aim.spreadAngle = 0.0001
-                            end
-                        end)
-                    else
-                        local orig = gunOriginals[data.name]
-                        if orig then
-                            pcall(function()
-                                if data.recoil and orig.recoil then
-                                    for k, v in pairs(orig.recoil) do data.recoil[k] = v end
-                                end
-                                if data.aim and orig.aim then
-                                    for k, v in pairs(orig.aim) do data.aim[k] = v end
-                                end
-                            end)
-                        end
-                    end
-                end
-            end)
+        Callback = function(v)
+            W.InfAmmo = v
+            N("无限子弹", v and "已开启" or "已关闭", 3)
         end,
+    })
+
+    local AutoBox = Tabs.qiang:AddLeftGroupbox("全自动")
+
+    AutoBox:AddToggle("W_AutoData", {
+        Text = "单发改全自动",
+        Default = false,
+        Callback = function(v)
+            W.AutoData = v
+            if not v then restoreAll() end
+            N("全自动", v and "已开启" or "已关闭", 3)
+        end,
+    })
+
+    AutoBox:AddDropdown("W_AutoValue", {
+        Text = "模式值",
+        Values = { "自动推导", "Auto", "Automatic", "FullAuto", "AutoFire" },
+        Default = "自动推导",
+        Multi = false,
+        Callback = function(v)
+            W.AutoValue = v
+            if W.AutoData then restoreAll() end
+        end,
+    })
+
+    local RateBox = Tabs.qiang:AddRightGroupbox("射速")
+
+    RateBox:AddSlider("W_RateMult", {
+        Text = "射速倍率",
+        Min = 1, Max = 30, Default = 1, Rounding = 0,
+        Callback = function(v) W.RateMult = math.max(1, v) end,
+    })
+
+    RateBox:AddSlider("W_RateOverride", {
+        Text = "射速强制(ms)",
+        Min = 0, Max = 200, Default = 0, Rounding = 0,
+        Callback = function(v)
+            W.RateOverride = v > 0 and (v / 1000) or 0
+            N("射速强制", v > 0 and (v .. " ms") or "已关闭", 3)
+        end,
+    })
+
+    RateBox:AddToggle("W_UnlockFire", {
+        Text = "自动清理开火残留",
+        Default = false,
+        Callback = function(v)
+            W.UnlockFire = v
+            N("解锁冷却", v and "已开启" or "已关闭", 3)
+        end,
+    })
+
+    RateBox:AddToggle("W_NoRecoil", {
+        Text = "无后座",
+        Default = false,
+        Callback = function(v) W.NoRecoil = v end,
     })
 end
 -- ======================================================
